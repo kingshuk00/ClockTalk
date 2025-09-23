@@ -1,0 +1,25 @@
+#
+# Copyright (c) 2025      High Performance Computing Center Stuttgart,
+#                         University of Stuttgart.  All rights reserved.
+#
+# Authors: Kingshuk Haldar <kingshuk.haldar@hlrs.de>
+#
+
+Import('env')
+
+senv= env.Clone()
+
+sources= ['clocks.c',
+          'trace_data.c',
+          'paraver.c',
+          'arg_opt_parser.c',
+          'monitoring.c',
+          'replay.c'
+]
+
+clocktalk= senv.Program(target= 'clocktalk',
+                        source= sources,
+                        duplicate= 0
+)
+
+Return('clocktalk')
