@@ -12,7 +12,7 @@
               <paraver-file-name>
   ```
 - ClockTalk works correctly only on MPI-traces.
-- Calculates the length of the ideal-network constrined critical-path (aka "_ideal run time_") from Paraver traces.
+- Calculates the length of the ideal-network constrained critical-path (aka "_ideal run time_") from Paraver traces.
   - assuming a network with _infinite bandwidth_ and _zero latency_
   - MPI communications starts <u>instantly</u> as soon as the communicating partners arrive - _zero latency_
   - When all partners have arrived, <u>communication finishes instantly irrespective of the message sizes</u> - _infinite bandwidth_
@@ -33,7 +33,7 @@
 git clone git@github.com:kingshuk00/ClockTalk.git
 git checkout main
 ```
-## Compilation
+## Compile:
 - After checking out the `main` branch:
   ```bash
   cd ClockTalk
@@ -48,73 +48,73 @@ git checkout main
   scons --buildtype=debug
   ```
 
-- Runtime options:
-  - General usage:
-    ```
-    clocktalk --usage
-    clocktalk --help
-    clocktalk --version
-    ```
-  - Set diagnostic review level into `stdout`:
+## Runtime options:
+- General usage:
+  ```
+  clocktalk --usage
+  clocktalk --help
+  clocktalk --version
+  ```
+- Set diagnostic review level into `stdout`:
+  ```bash
+  clocktalk -R<n>
+  clocktalk --show-reviews<=n>
+  ```
+- Non-fatal logical errors encountered during processing of traces are reported in `stdout`. Turn them off by:
+  ```
+  clocktalk -E0
+  clocktalk --show-errors=0
+  ```
+- The default format of the end-output can be made pretty by:
+  ```bash
+  clocktalk -P
+  clocktalk --pretty-output
+  ```
+- After just reading the trace without replaying, quick profiling can be directed to a separate file.
+  ```bash
+  clocktalk -X
+  clocktalk --export-profile
+  ```
+- I/O progress and timings of steps can be displayed on `stdout`:
+  ```bash
+  clocktalk -T
+  clocktalk --show-timings
+  ```
+- Special trace events (trace-initialisation, flush, and trace-disable) are detected and discarded from calculations. These events can be ignored which results in such stretches treated as useful.
+  ```bash
+  clocktalk --ignore-events=[traceability,flush,overhead]
+  ```
+- Default eager limit is 32kB. This can be changed:
+  ```bash
+  clocktalk --eager-limit=256k
+  ```
+  Default unit is `k`. Other valid units are `B`, `M`, `G`.
+- Use fixed-sized windowed monitoring:
+  ```bash
+  clocktalk -m window
+  ```
+  - Default window length is 1.0e9 ns. Change it with:
     ```bash
-    clocktalk -R<n>
-    clocktalk --show-reviews<=n>
+    clocktalk -m window --wmon-len 2.0e9
     ```
-  - Non-fatal logical errors encountered during processing of traces are reported in `stdout`. Turn them off by:
-    ```
-    clocktalk -E0
-    clocktalk --show-errors=0
-    ```
-  - The default format of the end-output can be made pretty by:
+- Use event-driven windowed monitoring:
+  ```bash
+    clocktalk -m event
+  ```
+  - Default rank is rank-0. Change it with:
     ```bash
-    clocktalk -P
-    clocktalk --pretty-output
+    clocktalk -m event --emon-rank 1
     ```
-  - After just reading the trace without replaying, quick profiling can be directed to a separate file.
+    Be careful to use a valid rank.
+  - Default number of events is 1. Change it with:
     ```bash
-    clocktalk -X
-    clocktalk --export-profile
+    clocktalk -m event --emon-nevts 8
     ```
-  - I/O progress and timings of steps can be displayed on `stdout`:
-    ```bash
-    clocktalk -T
-    clocktalk --show-timings
+- The created file `<prv-filename.[w/e].dat` can be plotted using `gnuplot` with the script provided in the `utils` directory.
+  ```gp
+  gnuplot --persist -e "fname='<prv-filename>.[w/e]m.dat'" utils/mon.gp
+  ```
+  - Alternatively, Python can be used for creating the same plot (requires: `numpy`, `pandas`, `matplotlib`, `seaborn`)
+    ```python
+    python utils/mon.py <prv-filename>.[w/e]m.dat
     ```
-  - Special trace events (trace-initialisation, flush, and trace-disable) are detected and discarded from calculations. These events can be ignored which results in such stretches treated as useful.
-    ```bash
-    clocktalk --ignore-events=[traceability,flush,overhead]
-    ```
-  - Default eager limit is 32kB. This can be changed:
-    ```bash
-    clocktalk --eager-limit=256k
-    ```
-    Default unit is `k`. Other valid units are `B`, `M`, `G`.
-  - Use fixed-sized windowed monitoring:
-    ```bash
-      clocktalk -m window
-    ```
-    - Default window length is 1.0e9 ns. Change it with:
-      ```bash
-      clocktalk -m window --wmon-len 2.0e9
-      ```
-  - Use event-driven windowed monitoring:
-    ```bash
-      clocktalk -m event
-    ```
-    - Default rank is rank-0. Change it with:
-      ```bash
-      clocktalk -m event --emon-rank 1
-      ```
-      Be careful to use a valid rank.
-    - Default number of events is 1. Change it with:
-      ```bash
-      clocktalk -m event --emon-nevts 8
-      ```
-  - The created file `<prv-filename.[w/e].dat` can be plotted using `gnuplot` with the script provided in the `utils` directory.
-    ```gp
-    gnuplot --persist -e "fname='<prv-filename>.[w/e]m.dat'" utils/mon.gp
-    ```
-    - Alternatively, Python can be used for creating the same plot (requires: `numpy`, `pandas`, `matplotlib`, `seaborn`)
-      ```python
-      python utils/mon.py <prv-filename>.[w/e]m.dat
-      ```
