@@ -9,6 +9,8 @@ import os
 import subprocess
 import re
 
+Decider('MD5-timestamp')
+
 AddOption('--compdb', dest='compdb', nargs=1, type='int', action='store', default=0,
           help='produce compilation database [0/1]')
 AddOption('--build-type', '--bt', dest='buildtype', nargs=1, type='choice', choices=['release', 'debug'], action='store', default='release',
