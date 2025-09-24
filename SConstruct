@@ -12,7 +12,7 @@ import re
 Decider('MD5-timestamp')
 
 AddOption('--compdb', action='store_true',
-          help='produce compilation database [0/1]')
+          help='produce compilation database')
 
 AddOption('--build-type', '--bt', dest='buildtype', nargs=1,
           type='choice', choices=['release', 'debug'],
