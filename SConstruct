@@ -9,12 +9,24 @@ import os
 import subprocess
 import re
 
-AddOption('--compdb', dest='compdb', nargs=1, type='int', action='store', default=0,
-          help='produce compilation database [0/1]')
-AddOption('--build-type', '--bt', dest='buildtype', nargs=1, type='choice', choices=['release', 'debug'], action='store', default='release',
+Decider('MD5-timestamp')
+
+AddOption('--compdb', action='store_true',
+          help='produce compilation database')
+
+AddOption('--build-type', '--bt', dest='buildtype', nargs=1,
+          type='choice', choices=['release', 'debug'],
+          action='store', default='release',
           help='specify build type [release/debug]')
-AddOption('--compile-link-opts', '--clo', dest='clopts', nargs=1, type='string', action='store',
-          help='provide other compile-cum-link flags')
+
+AddOption('--asan', action='store_true',
+          help='employ address sanitizer')
+
+AddOption('--ubsan', action='store_true',
+          help='employ undefined behaviour sanitizer')
+
+AddOption('--cflags', action='store', type= 'string', default= '',
+          help= 'provide comma-separated compile flags')
 
 env= Environment(LIBS= 'm', ENV= os.environ)
 if 'CC' in env['ENV']:
@@ -27,18 +39,24 @@ env.Append(CPPDEFINES= [('_POSIX_C_SOURCE', 200809),#strdup, clock_gettime
                         ('CLOCKTALK_VERSION_PATCH', 1)])
 
 env.Append(CFLAGS= ['-std=c17', '-Wall', '-Werror'])
-env.Append(CFLAGS= ['-g3', '-O0'] if GetOption('buildtype')== 'debug' else '-O3')
+env.Append(CFLAGS= ['-g3', '-O0'] if 'debug'== GetOption('buildtype') else '-O3')
+
+if GetOption('asan'):
+  env.Append(CFLAGS= ['-fsanitize=address', '-fno-omit-frame-pointer'])
+  env.Append(LINKFLAGS= '-fsanitize=address')
+
+if GetOption('ubsan'):
+  env.Append(CFLAGS= '-fsanitize=undefined')
+  env.Append(LINKFLAGS= '-fsanitize=undefined')
+
+if GetOption('cflags'):
+    env.Append(CFAGS= re.split(r'[,]', GetOption('cflags')))
 
 env.Append(LINKFLAGS= '-Wl,--no-undefined')
 
 env.Append(CPATH= [os.getcwd()+ '/src'])
 
-if None!= GetOption('clopts'):
-    opts= re.split(r'[,]', GetOption('clopts'))
-    env.Append(CFLAGS= opts)
-    env.Append(LINKFLAGS= opts)
-
-if(GetOption('compdb')!= 0):
+if GetOption('compdb'):
     env.Tool('compilation_db')
     env.CompilationDatabase('compile_commands.json')
 
