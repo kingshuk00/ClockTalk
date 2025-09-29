@@ -50,7 +50,7 @@ if GetOption('ubsan'):
   env.Append(LINKFLAGS= '-fsanitize=undefined')
 
 if GetOption('cflags'):
-    env.Append(CFAGS= re.split(r'[,]', GetOption('cflags')))
+    env.Append(CFLAGS= re.split(r'[,]', GetOption('cflags')))
 
 env.Append(LINKFLAGS= '-Wl,--no-undefined')
 
