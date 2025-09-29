@@ -32,7 +32,9 @@ env= Environment(LIBS= 'm', ENV= os.environ)
 if 'CC' in env['ENV']:
     env['CC']= env['ENV']['CC']
 
-env.Append(CPPDEFINES= ['CLOCKTALK_NORELEASE'])  # between-release development
+env.Append(CPPDEFINES= ['CLOCKTALK_NORELEASE',
+                        'NDEBUG' if GetOption('buildtype')!= 'debug' else '',
+                        ])  # between-release development
 env.Append(CPPDEFINES= [('_POSIX_C_SOURCE', 200809),#strdup, clock_gettime
                         ('CLOCKTALK_VERSION_MAJOR', 0),
                         ('CLOCKTALK_VERSION_MINOR', 0),
