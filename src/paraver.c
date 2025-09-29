@@ -7,6 +7,7 @@
  */
 
 #include"common.h"
+#include"utils.h"
 #include"paraver_file.h"
 #include"trace_data.h"
 #include"paraver.h"

@@ -8,6 +8,7 @@
 
 #include"build_info.h"
 #include"common.h"
+#include"utils.h"
 #include"arg_opt_parser.h"
 #include"paraver_file.h"
 #include"trace_data.h"
