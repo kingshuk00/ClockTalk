@@ -111,10 +111,10 @@ git checkout main
     clocktalk -m event --emon-nevts 8
     ```
 - The created file `<prv-filename.[w/e].dat` can be plotted using `gnuplot` with the script provided in the `utils` directory.
-  ```gp
+  ```bash
   gnuplot --persist -e "fname='<prv-filename>.[w/e]m.dat'" utils/mon.gp
   ```
   - Alternatively, Python can be used for creating the same plot (requires: `numpy`, `pandas`, `matplotlib`, `seaborn`)
-    ```python
+    ```bash
     python utils/mon.py <prv-filename>.[w/e]m.dat
     ```
