@@ -9,6 +9,7 @@
 #include"monitoring.h"
 #include"trace_data.h"
 #include"common.h"
+#include"utils.h"
 #include<float.h>
 
 inline static FILE *emFileOpen()

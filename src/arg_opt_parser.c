@@ -9,11 +9,15 @@
 #include"build_info.h"
 #include"arg_opt_parser.h"
 #include"common.h"
-#include"argp.h"
+#include"utils.h"
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
 
+#if !defined(__GLIBC__)
+# error "Required `libc` is missing"
+#endif
+#include"argp.h"
 
 static void printVersion(const char *const name)
 {

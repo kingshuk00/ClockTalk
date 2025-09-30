@@ -8,6 +8,7 @@
 
 #include"build_info.h"
 #include"common.h"
+#include"utils.h"
 #include"arg_opt_parser.h"
 #include"paraver_file.h"
 #include"trace_data.h"
@@ -22,7 +23,6 @@
 #include<math.h>
 #include<float.h>
 
-const bool eqtime(const double x, const double y) { return fabs(x- y)< 0.1; }
 inline static void initialiseClocks(const int np)
 {
   ClockInit(np);
@@ -143,7 +143,7 @@ inline static bool posted(const double *const t) { return t[2]> 0.1; }
 inline static bool settled(const double *const t) { return t[2]< -0.1; }
 inline static bool seen(const double *const t) { return posted(t)|| settled(t); }
 inline static const char *seenstatus(const double *const t) { return (posted(t)? "posted": "settled"); }
-inline static bool instant(const double *const t) { return eqtime(t[1], t[0]); }
+inline static bool instant(const double *const t) { return SameTime(t[1], t[0]); }
 inline static int sremote(const int p, const long ix) { return TraceGetProcSendRemote(p, ix); }
 inline static int rremote(const int p, const long ix) { return TraceGetProcRecvRemote(p, ix); }
 inline static bool rillogical(const int p, const long ix) { return TraceGetSendAtProcRecv(p, ix, 0)> TraceGetProcRecvAt(p, ix, 1); }
@@ -251,7 +251,7 @@ static int settleColls(const int p)
 
 inline static bool NonblockingSendExit(const int p) { return 3== pevt(p)|| 36== pevt(p)|| 37== pevt(p)|| 38== pevt(p); }
 inline static bool classicNonblockingSendExit(const int p,
-                                              const double *const t) { return NonblockingSendExit(p)&& eqtime(t[0], tpevt(p))&& eqtime(t[1], tcevt(p)); }
+                                              const double *const t) { return NonblockingSendExit(p)&& SameTime(t[0], tpevt(p))&& SameTime(t[1], tcevt(p)); }
 
 /* returns 1 if this send is settled, 0 otherwise */
 static int settleOneSend(const int p, const long ix)

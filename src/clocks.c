@@ -7,6 +7,7 @@
  */
 
 #include"common.h"
+#include"utils.h"
 #include"paraver.h"
 #include"clocks.h"
 #include<stdio.h>

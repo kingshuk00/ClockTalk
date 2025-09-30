@@ -17,6 +17,7 @@
 #include<stdbool.h>
 #include<time.h>
 #include<limits.h>
+#include<assert.h>
 #include<sys/types.h>
 #include<sys/stat.h>
 #include<unistd.h>
@@ -63,7 +64,9 @@ inline static double ParaverFileProcess(ParaverFile *const paraverFile,
                                          const bool silently);
 inline static char *ParaverRecordNextNum(char *const p)
 {
-  return strchr(p, ':')+ 1;
+  char *x= strchr(p, ':');
+  assert(NULL!= x);
+  return x+ 1;
 }
 inline static char *ParaverRecordNextNumNth(char *const p, const int n)
 {
