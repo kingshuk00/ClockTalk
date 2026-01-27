@@ -52,7 +52,7 @@ add_compile_definitions(
     CLOCKTALK_VERSION_MAJOR=1
     CLOCKTALK_VERSION_MINOR=0
     CLOCKTALK_VERSION_PATCH=0
-    #CLOCKTALK_NORELEASE           # indicate non-release build
+    CLOCKTALK_NORELEASE           # indicate non-release build
 )
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
