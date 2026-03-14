@@ -13,7 +13,7 @@
 #define REPLAY_COLLECTIVES_H__
 
 #include"common.h"
-#include"trace_data.h"
+#include"trace/trace.h"
 #include"paraver/paraver.h"
 #include"clocks/clocks.h"
 #include<float.h>
