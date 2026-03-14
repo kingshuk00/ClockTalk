@@ -234,10 +234,10 @@ inline static int paraverFileReadOneComm(char *const str, const int ix,
   if(cix!= ix) {
     printf("Problem, communicator-index erratic\n");
   }
-  char *ptr= ParaverRecordNextNumNth(str, 4);
+  char *ptr= ParaverRecordNextNumNth(str, 3);
   for(int i= 0; i< *cs; ++i) {
-    crs[i]= atoi(ptr)- 1;
     ptr= ParaverRecordNextNum(ptr);
+    crs[i]= atoi(ptr)- 1;
   }
   return *cs;
 }
