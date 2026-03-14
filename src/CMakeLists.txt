@@ -13,7 +13,7 @@ add_subdirectory(monitoring)
 file(GLOB REPLAY_ROOT_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/*.c"
 )
-list(FILTER REPLAY_ROOT_SOURCES EXCLUDE REGEX ".*/replay\\.c$")
+list(FILTER REPLAY_ROOT_SOURCES EXCLUDE REGEX ".*/main\\.c$")
 
 add_library(replay STATIC ${REPLAY_ROOT_SOURCES})
 
@@ -32,7 +32,7 @@ target_link_libraries(replay PUBLIC
 
 # main function
 add_executable(clocktalk
-  ${CMAKE_CURRENT_SOURCE_DIR}/replay.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/main.c
 )
 
 target_include_directories(clocktalk PRIVATE
