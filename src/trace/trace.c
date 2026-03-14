@@ -9,7 +9,7 @@
  *
  */
 
-#include"trace_data.h"
+#include"trace.h"
 #include"common.h"
 #include"utils.h"
 #include"paraver/paraver_file.h"

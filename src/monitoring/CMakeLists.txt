@@ -7,4 +7,4 @@ target_include_directories(monitoring PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_link_libraries(monitoring PUBLIC m)
+target_link_libraries(monitoring PUBLIC trace m)

@@ -13,7 +13,7 @@
 #include"common.h"
 #include"utils.h"
 #include"arg_opt_parser.h"
-#include"trace_data.h"
+#include"trace/trace.h"
 #include"collectives.h"
 #include"paraver/paraver_file.h"
 #include"paraver/paraver.h"

@@ -10,7 +10,7 @@
  */
 
 #include"monitoring.h"
-#include"trace_data.h"
+#include"trace/trace.h"
 #include"common.h"
 #include"utils.h"
 #include<float.h>

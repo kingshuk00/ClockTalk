@@ -5,6 +5,7 @@
 # Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
 #
 
+add_subdirectory(trace)
 add_subdirectory(paraver)
 add_subdirectory(clocks)
 add_subdirectory(monitoring)
@@ -24,6 +25,7 @@ target_link_libraries(replay PUBLIC
   paraver
   clock
   monitoring
+  trace
   m
 )
 
@@ -40,8 +42,5 @@ target_include_directories(clocktalk PRIVATE
 # Static link order matters; dependencies should appear to the right.
 target_link_libraries(clocktalk PRIVATE
   replay
-  monitoring
-  clock
-  paraver
   m
 )
