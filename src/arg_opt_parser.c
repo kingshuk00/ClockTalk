@@ -1,8 +1,10 @@
 /*
+ * Copyright (c) 2026      Kingshuk Haldar.  All rights reserved.
+ *
  * Copyright (c) 2025      High Performance Computing Center Stuttgart,
  *                         University of Stuttgart. All rights reserved.
  *
- * Authors: Kingshuk Haldar <kingshuk.haldar@hlrs.de>
+ * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
  */
 
@@ -21,10 +23,11 @@
 
 static void printVersion(const char *const name)
 {
-  printf("%s (%s on %s at %s) %s\n\n", name, COMPILER_VERSION,
-         CLOCKTALK_BUILD_DATE, CLOCKTALK_BUILD_TIME, CLOCKTALK_VERSION);
-  printf("Copyright (C) 2025 High Performance Computing Center Stuttgart,\n"
-         "                   University of Stuttgart. All rights reserved.\n");
+  printf("%s (%s on %s at %s) %s\n\n", name, CT_COMPILER,
+         CT_BUILD_DATE, CT_BUILD_TIME, CT_VERSION);
+  printf("Copyright (C) 2026      Kingshuk Haldar. All rights reserved.\n\n");
+  printf("Copyright (C) 2025      High Performance Computing Center Stuttgart,\n"
+         "                        University of Stuttgart. All rights reserved.\n");
 }
 
 GlobalOpts GlOpts= { NULL, { 0, 1, false, false, false }, { 0.0, -1, false }, { -1, 0, false }, {32768.0, { false, false, false } } };

@@ -895,8 +895,7 @@ int main(int argc, char *argv[])
   }
   PrintGlobalOpts();
 
-  Debug1("Running program built on %s at %s\n", CLOCKTALK_BUILD_DATE,
-         CLOCKTALK_BUILD_TIME);
+  Debug1("Running program built on %s at %s\n", CT_BUILD_DATE, CT_BUILD_TIME);
 
   const double t0= Timer_s();
   if(0!= ReadParaverFile(GlOpts.filename)) {
