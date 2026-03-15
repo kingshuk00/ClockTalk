@@ -259,9 +259,9 @@ static void countTraceability(const int p, const double at, const int start)
 }
 static void countEvt(char *const line)
 {
-  char *ptr= ParaverRecordNextNumNth(line, 3);
+  char *ptr= PrvFile_nthRecNum(line, 3);
   const int p= atoi(ptr)- 1;
-  ptr= ParaverRecordNextNumNth(ptr, 2);
+  ptr= PrvFile_nthRecNum(ptr, 2);
   last.tickAt[p]= atof(ptr);
 
   /* TODO: maybe move this check to a separate reading and finish as soon as everyone is started */
@@ -275,7 +275,7 @@ static void countEvt(char *const line)
   while(NULL!= ptr) {
     ++ptr;
     long long type= atoll(ptr);
-    ptr= ParaverRecordNextNum(ptr);
+    ptr= PrvFile_nextRecNum(ptr);
     switch(type) {
     case 50000001:  /* mpi p2p */
     case 50000002:  /* mpi collective */
@@ -307,10 +307,10 @@ static void countEvt(char *const line)
 }
 static void countMsg(char *const line)
 {
-  char *ptr= ParaverRecordNextNumNth(line, 3);
+  char *ptr= PrvFile_nthRecNum(line, 3);
   TraceIncrNumProcSends(atoi(ptr)- 1);
 
-  ptr= ParaverRecordNextNumNth(ptr, 6);
+  ptr= PrvFile_nthRecNum(ptr, 6);
   TraceIncrNumProcRecvs(atoi(ptr)- 1);
 }
 static void evtsAndCommsCounter(char *const line)
@@ -455,15 +455,15 @@ static void readTraceability(const int p, const double at, const int evt)
 
 static void readEvt(char *const line)
 {
-  char *ptr= ParaverRecordNextNumNth(line, 3);
+  char *ptr= PrvFile_nthRecNum(line, 3);
   const int p= atoi(ptr)- 1;
-  ptr= ParaverRecordNextNumNth(ptr, 2);
+  ptr= PrvFile_nthRecNum(ptr, 2);
   last.tickAt[p]= atof(ptr);
   ptr= strchr(ptr, ':');
   while(NULL!= ptr) {
     ++ptr;
     long long type= atoll(ptr);
-    ptr= ParaverRecordNextNum(ptr);
+    ptr= PrvFile_nextRecNum(ptr);
     switch(type) {
     case 50000002:  /* mpi collective */
       readMPICollEvt(p, last.tickAt[p], atoi(ptr));
@@ -501,28 +501,28 @@ static void readMsg(char *const line)
   /* s s    s     x     s       x     x     s    s     x     s       x     x     x    x   */
   /* 3:scpu:stask:srank:sthread:lsend:psend:rcpu:rtask:rrank:rthread:lrecv:precv:size:tag */
   /*                     0   1   2  3   4   5   6   7   8  9   0   1   2   3  4 */
-  char *ptr= ParaverRecordNextNumNth(line, 3);
+  char *ptr= PrvFile_nthRecNum(line, 3);
   TraceSetCurrMsgSendRank(atoi(ptr)- 1);
 
-  ptr= ParaverRecordNextNumNth(ptr, 2);
+  ptr= PrvFile_nthRecNum(ptr, 2);
   TraceSetCurrMsgSendAt(0, atof(ptr));
 
-  ptr= ParaverRecordNextNum(ptr);
+  ptr= PrvFile_nextRecNum(ptr);
   TraceSetCurrMsgSendAt(1, atof(ptr));
 
-  ptr= ParaverRecordNextNumNth(ptr, 3);
+  ptr= PrvFile_nthRecNum(ptr, 3);
   TraceSetCurrMsgRecvRank(atoi(ptr)- 1);
 
-  ptr= ParaverRecordNextNumNth(ptr, 2);
+  ptr= PrvFile_nthRecNum(ptr, 2);
   TraceSetCurrMsgRecvAt(0, atof(ptr));
 
-  ptr= ParaverRecordNextNum(ptr);
+  ptr= PrvFile_nextRecNum(ptr);
   TraceSetCurrMsgRecvAt(1, atof(ptr));
 
-  ptr= ParaverRecordNextNum(ptr);
+  ptr= PrvFile_nextRecNum(ptr);
   TraceSetCurrMsgSize(atof(ptr));
 
-  ptr= ParaverRecordNextNum(ptr);
+  ptr= PrvFile_nextRecNum(ptr);
   TraceSetCurrMsgTag(atoi(ptr));
 
   TraceSetProcSendRecvGids(TraceGetCurrMsgSendRank(),
@@ -760,17 +760,17 @@ static void showAggregated(const int np)
 inline static double processParaverFile(ParaverFile *const file,
                                         void (*processor)(char *const))
 {
-  ParaverFileSetLineProcessor(file, processor);
-  ParaverFileReloadRecords(file);
-  return ParaverFileProcess(file, !GlOpts.show_opts.timings);
+  PrvFile_setLineProcessor(file, processor);
+  PrvFile_reloadRecords(file);
+  return PrvFile_process(file, (GlOpts.show_opts.timings? 2: 0));
 }
 int ReadParaverFile(const char *const fn)
 {
-  ParaverFile *file= ParaverFileOpen(fn);
+  ParaverFile *file= PrvFile_open(fn);
 
   SetWorkingTrace(CreateTrace(file));
 
-  const int np= ParaverFileGetNumProcs(file);
+  const int np= PrvFile_numProcs(file);
   allocLasts(np);
 
   const double tioCount= processParaverFile(file, evtsAndCommsCounter);
@@ -794,7 +794,7 @@ int ReadParaverFile(const char *const fn)
 
   freeLasts();
 
-  ParaverFileClose(file); file= NULL;
+  PrvFile_close(file); file= NULL;
   Debug1("File I/O: during count= %.1lfs, during read= %.1lfs\n", tioCount,
          tioRead);
 
@@ -815,7 +815,7 @@ const char *GetParaverMPIEvtName(const int ev)
   case -1:
     return "End-tracing";
   default:
-    return ParaverFileGetMPIName(ev);
+    return PrvFile_MPIName(ev);
   }
 
   return "Strange";
