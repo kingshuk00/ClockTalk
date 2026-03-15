@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
  *                         University of Stuttgart.  All rights reserved.
@@ -9,15 +8,272 @@
  *
  */
 
-#ifndef PARAVER_FILE_READER_H__
-#define PARAVER_FILE_READER_H__
+/**
+ * @file paraver_file.h
+ * @brief General-purpose header-only library to aid read Paraver files
+ *
+ * A Paraver trace file has three sections in order:dfd
+ *
+ *   1. **Header line**: a single line beginning with `#Paraver (` that encodes
+ *      the trace duration, time unit, node count, application count, process
+ *      counts per application, and communicator counts.
+ *
+ *   2. **Communicator section**: one line per communicator, each of the form
+ *      `c:<app>:<id>:<size>:<rank0>:<rank1>:...`, listing the global MPI ranks
+ *      that belong to each communicator.
+ *
+ *   3. **Records section**: the body of the trace.  Each line begins with a
+ *      record-type digit: `1` = state, `2` = event, `3` = point-to-point
+ *      message.
+ *
+ * The consumer of this library calls `PrvFile_process()` to process every line
+ * of the trace using its own callback.
+ *   - This function requires the callback to be set before it is called.
+ *
+ * The consumer can implement a multi-pass workflow by calling the
+ * `PrvFile_reloadRecords()` function.
+ *   - This function seeks back to the start of the records sections, from where
+ *     `PrvFile_process()` can be called once again.
+ *
+ * The records section is read in 32 MB chunks using `fread()` for throughput.
+ * Partial lines at chunk boundaries are carried over to the next chunk via
+ * `memmove()`. The time spent in `fread()` is measured separately from processing
+ * time and returned by the `PrvFile_process()` function to the consumer.
+ *
+ * @note Requires `_LARGEFILE_SOURCE` for `fseeko()`/`ftello()` on 32-bit
+ *       systems so that file offsets are 64-bit and traces larger than 2 GB
+ *       are handled correctly. On 64-bit systems this has no effect.
+ *
+ * @note Multi-application traces are not fully supported. A warning is
+ *       printed if numApps > 1 and results may be inaccurate.
+ *
+ * @note Designed to be used standalone.
+ */
+
+#ifndef CLOCKTALK_PARAVER_PARAVER_FILE_H__
+#define CLOCKTALK_PARAVER_PARAVER_FILE_H__
 
 #define _LARGEFILE_SOURCE
 
+/******************************************************************************/
+/* Public APIs of this header-only library                                    */
+/******************************************************************************/
+
+typedef struct ParaverFile_struct__ ParaverFile;
+
+/**
+ * @brief Opens a Paraver trace file and parses its header.
+ *
+ * Allocates and returns a `ParaverFile` handle populated with all metadata
+ * from the header and communicator sections. The file pointer is left
+ * positioned at the start of the records section.
+ *
+ * Specifically:
+ *   - Opens the file and records its total size via `fstat()`.
+ *   - Reads and parses the single header line to extract runtime, time unit,
+ *     node count, application count, process counts, and communicator counts.
+ *   - Reads each communicator line to accumulate the total membership count
+ *     in @p `allCommsSizes` (sizes are not stored yet; use `PrvFile_readComms()`
+ *     for that).
+ *   - Records file offsets for the communicator section and records section so
+ *     they can be seeked to independently.
+ *
+ * @param[in] fn Path to the `.prv` trace file.
+ * @return Allocated and initialised ParaverFile handle, or `NULL` on any error
+ *         (eg. file not found, unrecognised header format, allocation failure).
+ *          All resources are cleaned up before returning `NULL`.
+ */
+inline static ParaverFile *PrvFile_open(const char *const fn);
+
+/**
+ * @brief Closes the file handle and frees the `ParaverFile` struct.
+ *
+ * Safe to call with `NULL`.
+ *
+ * @param[in] file Handle to close. Must not be used after this call.
+ */
+inline static void PrvFile_close(ParaverFile *const file);
+
+/**
+ * @brief Returns the trace duration in the trace's native time unit.
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return Trace duration as parsed from the header.
+ */
+inline static long long PrvFile_runTime(const ParaverFile *const file);
+
+/**
+ * @brief Returns the time unit string declared in the trace header.
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return "ns" if the header declares nanoseconds, "us" otherwise.
+ */
+inline static const char *PrvFile_timeUnit(const ParaverFile *const file);
+
+/**
+ * @brief Returns the number of hardware nodes recorded in the header.
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return Node count.
+ */
+inline static int PrvFile_numNodes(const ParaverFile *const file);
+
+/**
+ * @brief Returns the number of applications recorded in the header.
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return Application count. Values > 1 indicate a multi-app trace, which
+ *         is not fully supported.
+ */
+inline static int PrvFile_numApps(const ParaverFile *const file);
+
+/**
+ * @brief Returns the total number of MPI processes across all applications.
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return Process count.
+ */
+inline static int PrvFile_numProcs(const ParaverFile *const file);
+
+/**
+ * @brief Returns the number of communicators declared in the trace.
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return Communicator count.
+ */
+inline static int PrvFile_numComms(const ParaverFile *const file);
+
+/**
+ * @brief Returns the total number of communicator membership entries.
+ *
+ * This is the sum of sizes of all communicators and the number of entries
+ * needed in the flat ranks array when allocating communicator information.
+ *
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return Total membership entry count across all communicators.
+ */
+inline static int PrvFile_allCommsSizes(const ParaverFile *const file);
+
+/**
+ * @brief Reads communicator membership data into caller-supplied arrays.
+ *
+ * Seeks to the communicator section and reads each communicator line,
+ * populating @p commsSizes with the size of each communicator and
+ * @p commsRanks with the global MPI ranks of its members.
+ *
+ * The caller is responsible for allocating the arrays. The expected layout
+ * is a flat contiguous block for all ranks with @p commsRanks[i] pointing
+ * into it: `commsRanks[0]` = flat_block; `commsRanks[i]` = `commsRanks[i-1] +
+ * commsSizes[i-1]`.
+ *
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @param[inout] commsSizes Array of length numComms. `commsSizes[i]` will be set
+ *                          to the number of members of i-th communicator.
+ * @param[inout] commsRanks Array of pointers of length numComms.
+ *                          `commsRanks[i]` points to the start of the rank list
+ *                          for communicator i. Ranks are 0-based.
+ * @return 0 on success, -1 on seek failure.
+ */
+inline static int PrvFile_readComms(const ParaverFile *const file,
+                                   int *const commsSizes,
+                                   int **const commsRanks);
+
+/**
+ * @brief Seeks the file pointer back to the start of the records section.
+ *
+ * Possible use is between a count pass and a read pass at the consumer to
+ * restart record processing without reopening the file.
+ *
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @return 0 on success, -1 on seek failure.
+ */
+inline static int PrvFile_reloadRecords(const ParaverFile *const file);
+
+/**
+ * @brief Sets the line callback invoked for each record line during processing.
+ *
+ * The callback receives a null-terminated string containing one record line
+ * with the trailing newline replaced by '\0'. It is called once per line
+ * during `PrvFile_process()`.
+ *
+ * Must be called before `PrvFile_process()` to set the callback.
+ * Call it again with a different function between passes.
+ *
+ * @param[in] file Opened file handle returned by `PrvFile_open()`.
+ * @param[in] processorFunc Callback function that processes one mutable record
+ *                          line at a time. May modify the string in place
+ *                          (e.g. via `strtok()`) but must not free it.
+ */
+inline static void PrvFile_setLineProcessor(ParaverFile *const file,
+                                            void (*processorFunc)(char *const));
+
+/**
+ * @brief Reads and processes the entire records section.
+ *
+ * Reads the file in 32 MB chunks using `fread()` for throughput. Partial lines
+ * at chunk boundaries are carried forward with `memmove()`. The line processor
+ * set by `PrvFile_setLineProcessor()` is called once for each complete line.
+ *
+ * The time spent inside fread() is measured separately from processing time
+ * using `CLOCK_MONOTONIC` and returned to the caller for I/O performance
+ * reporting.
+ *
+ * @param[in] file Opened file handle returned by `PrvFile_open()`. Must have a
+                   line processor set via `PrvFile_setLineProcessor()`.
+ * @param[in] verbosity If non-zero, prints a progress percentage to `stdout` as
+ *                      processing proceeds.
+ * @return Time spent in `fread()` in seconds. Returns 0.0 if no line processor
+ *         has been set.
+ */
+inline static double PrvFile_process(ParaverFile *const file,
+                                     const int verbosity);
+
+/**
+ * @brief Advances a record line pointer past the next ':' field separator.
+ *
+ * Paraver record lines use ':' as the field delimiter. This function finds
+ * the next ':' in the string and returns a pointer to the character
+ * immediately after it, i.e. to the start of the next field value.
+ *
+ * @param[in] p Pointer into a record line, positioned at or before a ':'.
+ * @return Pointer to the first character of the next field.
+ * @note Asserts that a ':' is found.  Passing a pointer past the last
+ *       field will trigger an assertion failure.
+ */
+inline static char *PrvFile_nextRecNum(char *const p);
+
+/**
+ * @brief Advances a record line pointer past @p `n` ':' field separators.
+ *
+ * Convenience wrapper around `PrvFile_nextRecNum()` for skipping multiple
+ * fields at once.
+ *
+ * @param[in] p Pointer into a record line.
+ * @param[in] n Number of ':' separators to skip.
+ * @return Pointer to the first character of the field after the nth
+ *         separator.
+ */
+inline static char *PrvFile_nthRecNum(char *const p, const int n);
+
+/**
+ * @brief Returns the human-readable name of an MPI event by its Paraver id.
+ *
+ * Paraver encodes MPI functions as integer event values in the range [0, 216].
+ * This function maps those values to their standard MPI function name strings
+ * (e.g. 1: "Send", 7: "Bcast"). Event id 0 is "Useful" (out-of-MPI).
+ *
+ * @param[in] eventId Paraver MPI event id.
+ * @return Pointer to a string literal with the function name, or NULL if
+ *         @p `eventId` is out of the valid range.
+ */
+inline static const char *PrvFile_MPIName(const int eventId);
+
+/* -------------------------------------------------------------------------- */
+/* END of public APIs of this library                                         */
+/* -------------------------------------------------------------------------- */
+
+
+/* -------------------------------------------------------------------------- */
+/* Private APIs of this library                                               */
+/* -------------------------------------------------------------------------- */
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
-#include<stdbool.h>
+#include<stdint.h>
 #include<time.h>
 #include<limits.h>
 #include<assert.h>
@@ -25,170 +281,245 @@
 #include<sys/stat.h>
 #include<unistd.h>
 
+/**
+ * @brief Handle for an opened Paraver trace file.
+ *
+ * Populated entirely by `PrvFile_open()`. All fields are read-only after
+ * construction; only the lineProcessor is mutated during use.
+ *
+ * @var ParaverFile::fp
+ *   Opened file handle. Positioned at the start of the records section after
+ *   `PrvFile_open()` returns, then repositioned by `PrvFile_reloadRecords()`.
+ *
+ * @var ParaverFile::size
+ *   Total file size in bytes, obtained via `fstat()`. Used by
+ *   `PrvFile_process()` to compute and display progress as a percentage.
+ *
+ * @var ParaverFile::commsPos
+ *   File offset of the first communicator line, i.e. the byte immediately
+ *   after the header line. Used by `PrvFile_readComms()` to seek back to
+ *   the communicator section.
+ *
+ * @var ParaverFile::recsPos
+ *   File offset of the first record line, i.e. the byte immediately after the
+ *   last communicator line. Used by PrvFile_reloadRecords() for multi-pass
+ *   processing.
+ *
+ * @var ParaverFile::runTime
+ *   Trace duration in the time unit given by @p `timeUnit`, as parsed from the
+ *   header.
+ *
+ * @var ParaverFile::timeUnit
+ *   Null-terminated string: "ns" if the header contains "_ns", "us" otherwise.
+ *
+ * @var ParaverFile::numNodes
+ *   Number of hardware nodes recorded in the header.
+ *
+ * @var ParaverFile::numApps
+ *   Number of applications recorded in the header. Values > 1 are not fully
+ *   supported.
+ *
+ * @var ParaverFile::numProcs
+ *   Total number of MPI processes across all applications.
+ *
+ * @var ParaverFile::numComms
+ *   Number of communicators declared in the header and communicator section.
+ *
+ * @var ParaverFile::allCommsSizes
+ *   Sum of all communicator sizes, i.e. the total number of
+ *   (communicator: ranks) membership entries. Used to allocate the flat ranks
+ *   array.
+ *
+ * @var ParaverFile::lineProcessor
+ *   Callback set by `PrvFile_setLineProcessor()`, called once per record line
+ *   during `ParaverFileProcess()`.
+ */
 typedef struct ParaverFile_struct__ {
   FILE *fp;
   off_t size;
-  off_t communicatorsAt;
-  off_t recordsAt;
+  off_t commsPos;
+  off_t recsPos;
+  int verbosity;
 
-  long long runTime;
+  int64_t runTime;
   char timeUnit[4];
   int numNodes;
   int numApps;
   int numProcs;
   int numComms;
-  long numAllCommsSizes;
+  long allCommsSizes;
 
   void (*lineProcessor)(char *const);
 } ParaverFile;
 
-inline static ParaverFile *ParaverFileOpen(const char *const filename);
-inline static void ParaverFileClose(ParaverFile *const paraverFile);
-inline static long long ParaverFileGetRuntime(const ParaverFile *const
-                                              paraverFile) { return paraverFile->runTime; }
-inline static const char *ParaverFileGetTimeUnit(const ParaverFile *const
-                                                 paraverFile) { return paraverFile->timeUnit; }
-inline static int ParaverFileGetNumNodes(const ParaverFile *const paraverFile) { return paraverFile->numNodes; }
-inline static int ParaverFileGetNumApps(const ParaverFile *const paraverFile) { return paraverFile->numApps; }
-inline static int ParaverFileGetNumProcs(const ParaverFile *const paraverFile) { return paraverFile->numProcs; };
-inline static int ParaverFileGetNumComms(const ParaverFile *const paraverFile) { return paraverFile->numComms; }
-inline static int ParaverFileGetAllCommsSizes(const ParaverFile *const
-                                              paraverFile) { return paraverFile->numAllCommsSizes; }
-inline static int ParaverFileReadComms(const ParaverFile *const paraverFile,
-                                       int *const commsSizes,
-                                       int **const commsRanks);
 
-inline static int ParaverFileReloadRecords(const ParaverFile *const
-                                           paraverFile);
-inline static void ParaverFileSetLineProcessor(ParaverFile *const paraverFile,
-                                               void (*processorFunc)(char *const))
-{ paraverFile->lineProcessor= processorFunc; }
-inline static double ParaverFileProcess(ParaverFile *const paraverFile,
-                                         const bool silently);
-inline static char *ParaverRecordNextNum(char *const p)
+inline static long long PrvFile_runTime(const ParaverFile *const file)
+{
+  return file->runTime;
+}
+inline static const char *PrvFile_timeUnit(const ParaverFile *const file)
+{
+  return file->timeUnit;
+}
+inline static int PrvFile_numNodes(const ParaverFile *const file)
+{
+  return file->numNodes;
+}
+inline static int PrvFile_numApps(const ParaverFile *const file)
+{
+  return file->numApps;
+}
+inline static int PrvFile_numProcs(const ParaverFile *const file)
+{
+  return file->numProcs;
+}
+inline static int PrvFile_numComms(const ParaverFile *const file)
+{
+  return file->numComms;
+}
+inline static int PrvFile_allCommsSizes(const ParaverFile *const file)
+{
+  return file->allCommsSizes;
+}
+
+inline static void PrvFile_setLineProcessor(ParaverFile *const file,
+                                            void (*processorFunc)(char *const))
+{
+  file->lineProcessor= processorFunc;
+}
+
+inline static char *PrvFile_nextRecNum(char *const p)
 {
   char *x= strchr(p, ':');
   assert(NULL!= x);
   return x+ 1;
 }
-inline static char *ParaverRecordNextNumNth(char *const p, const int n)
+
+inline static char *PrvFile_nthRecNum(char *const p, const int n)
 {
   char *ptr= p;
   for(int i= 0; i< n; ++i) {
-    ptr= ParaverRecordNextNum(ptr);
+    ptr= PrvFile_nextRecNum(ptr);
   }
   return ptr;
 }
 
-inline static const char *ParaverFileGetMPIName(const int eventId);
-
-/* private */
-inline static ParaverFile *ParaverFileOpen(const char *const filename)
+inline static off_t prvfile_getSize(FILE *fp)
 {
-  FILE *fp= NULL;
-  char *headerStr= NULL;
+  struct stat fpStat;
+  if(fstat(fileno(fp), &fpStat)< 0) {
+    fprintf(stderr, "%s: Error reading file statistics\n", __func__);
+    return -1;
+  }
+
+  if(-1== fseeko(fp, 0, SEEK_SET)) {
+    fprintf(stderr, "%s: Error locating Paraver header section.\n", __func__);
+    return -1;
+  }
+
+  return fpStat.st_size;
+}
+
+inline static off_t prvfile_readHeader(FILE *fp, char **headerp, size_t *headerLenp)
+{
+  ssize_t linelen= getline(headerp, headerLenp, fp);
+  if(-1== linelen) {
+    if(NULL!= (*headerp)) {
+      free(*headerp);
+      *headerp= NULL;
+    }
+    return -1;
+  } else {
+    *headerLenp= (size_t) linelen;
+  }
+  return ftello(fp);
+}
+inline static ParaverFile *PrvFile_open(const char *const fn)
+{
   ParaverFile *file= (ParaverFile *) malloc(sizeof(ParaverFile));
   if(NULL== file) {
-    printf("%s: Error allocating memroy\n", __func__);
+    fprintf(stderr, "%s: Error allocating memroy\n", __func__);
     goto bad;
   }
   memset(file, 0, sizeof(ParaverFile));
 
-  fp= fopen(filename, "r");
+  FILE *fp= fopen(fn, "r");
   if(NULL== fp) {
-    printf("%s: Error opening file-\"%s\"\n", __func__, filename);
+    fprintf(stderr, "%s: Error opening file-\"%s\"\n", __func__, fn);
     goto bad;
   }
 
-  {
-    struct stat fprvStat;
-    if(fstat(fileno(fp), &fprvStat) < 0) {
-      printf("%s: Error reading file statistics\n", __func__);
-      goto bad;
-    }
-    file->size= fprvStat.st_size;
-  }
-
-  if(-1== fseeko(fp, 0, SEEK_SET)) {
-    printf("%s: Error locating Paraver header section.\n", __func__);
+  if((file->size= prvfile_getSize(fp))< 0) {
     goto bad;
   }
 
+  char *header= NULL;
   size_t headerLen= 0;
-  {
-    ssize_t linelen= getline(&headerStr, &headerLen, fp);
-    if(-1== linelen) {
-      if(NULL!= headerStr) {
-        free(headerStr);
-        headerStr= NULL;
-      }
-      goto bad;
-    } else {
-      headerLen= (size_t) linelen;
-    }
+  if((file->commsPos= prvfile_readHeader(fp, &header, &headerLen))< 0) {
+    goto bad;
   }
-  file->communicatorsAt= ftello(fp);
 
-  char *ptr= headerStr;
+  char *ptr= header;
   if(0!= strncmp("#Paraver (", ptr, 10)) {
-    printf("%s: Unknown trace format - invalid header.\n", __func__);
+    fprintf(stderr, "%s: Unexpected Paraver trace format - invalid header.\n", __func__);
   }
+
   ptr= strchr(ptr, ')')+ 2;
-  file->runTime= atoll(ptr);
+  file->runTime= (int64_t) atoll(ptr);
+
   if(0== strncmp("_ns", ptr- 3, 3)) {
     strcpy(file->timeUnit, "ns");
   } else {
     strcpy(file->timeUnit, "us");
   }
 
-  ptr= strchr(ptr, ':')+ 1;
+  ptr= PrvFile_nextRecNum(ptr);
   file->numNodes= atoi(ptr);
 
-  ptr= strchr(ptr, ':')+ 1;
+  ptr= PrvFile_nextRecNum(ptr);
   file->numApps= atoi(ptr);
   if(file->numApps> 1) {
-    printf("Handling trac-files with more than 1 applications is not yet supported\n");
-    printf("Results will be inaccurate.\n");
+    fprintf(stderr, "Paraver traces with more than 1 applications is not yet "
+            "supported.\nResults will be inaccurate.\n");
   }
 
   file->numProcs= 0;
   file->numComms= 0;
-  ptr= strchr(ptr, ':')+ 1;
-  {
-    while(NULL!= ptr) {
-      file->numProcs+= atoi(ptr);
-      ptr= strchr(ptr, '(')+ 1;
-      ptr= strchr(ptr, ')')+ 1;
-      if(strlen(ptr)> 1) {
-        ++ptr;
-        file->numComms+= atoi(ptr);
-      }
-      if(NULL!= strchr(ptr, ':')) {
-        ptr= strchr(ptr, ':');
-      } else if(NULL!= strchr(ptr, ',')) {
-        ptr= strchr(ptr, ',');
-      } else {
-        ptr= NULL;
-      }
+  ptr= PrvFile_nextRecNum(ptr);
+  while(NULL!= ptr) {
+    file->numProcs+= atoi(ptr);
+    ptr= strchr(ptr, '(')+ 1;
+    ptr= strchr(ptr, ')')+ 1;
+    if(strlen(ptr)> 1) {
+      ++ptr;
+      file->numComms+= atoi(ptr);
+    }
+    if(NULL!= strchr(ptr, ':')) {
+      ptr= strchr(ptr, ':');
+    } else if(NULL!= strchr(ptr, ',')) {
+      ptr= strchr(ptr, ',');
+    } else {
+      ptr= NULL;
     }
   }
 
-  /* printf("%d communicators found!\n", file->numComms); */
   for(int i= 0; i< file->numComms; ++i) {
-    ssize_t len= getline(&headerStr, &headerLen, fp);
+    ssize_t len= getline(&header, &headerLen, fp);
     if(-1== len) {
-      printf("%s: Call to getline() failed.\n", __func__);
+      fprintf(stderr, "%s: getline() failed.\n", __func__);
+      goto bad;
     }
+
     int cnp;
     /*                        c:app: id:np:p0:p1... */
-    if(1!= sscanf(headerStr, "c:%*d:%*d:%d:", &cnp)) {
-      printf("%s: Unknown trace format - cannot read communicators section.\n",
-             __func__);
+    if(1!= sscanf(header, "c:%*d:%*d:%d:", &cnp)) {
+      fprintf(stderr, "%s: Unexpected Paraver trace format - invalid communicators.\n",
+              __func__);
     }
-    (file->numAllCommsSizes)+= cnp;
-    /* printf("communicator-%d: %d members\n", id, cnp); */
+
+    (file->allCommsSizes)+= cnp;
   }
-  file->recordsAt= ftello(fp);
+  file->recsPos= ftello(fp);
 
   file->fp= fp;
   goto bye;
@@ -204,13 +535,14 @@ bad:
   }
 
 bye:
-  if(NULL!= headerStr) {
-    free(headerStr);
-    headerStr= NULL;
+  if(NULL!= header) {
+    free(header);
+    header= NULL;
   }
   return file;
 }
-inline static void ParaverFileClose(ParaverFile *const file)
+
+inline static void PrvFile_close(ParaverFile *const file)
 {
   if(NULL!= file) {
     if(NULL!= file->fp) {
@@ -221,49 +553,50 @@ inline static void ParaverFileClose(ParaverFile *const file)
   }
 }
 
-inline static int paraverFileReadOneComm(char *const str, const int ix,
-                                         int *const cs, int *const crs)
+inline static int prvFile_readOneComm(char *const str, const int ix,
+                                      int *const cs, int *const crs)
 {
   int cix;
   /*                ignored-c:app: */
   if(2!= sscanf(str, "c:%*d:%d:%d:", &cix, cs)) {
-    printf("%s: Unknown trace format - cannot read communicators section.\func",
-           str);
+    fprintf(stderr,
+            "%s: Unexpected Paraver trace format - invalid communicator.\n%s\n",
+            __func__, str);
   }
   --cix;
   if(cix!= ix) {
-    printf("Problem, communicator-index erratic\n");
+    fprintf(stderr, "%s: Erratic communicator index\n%s\n", __func__, str);
   }
-  char *ptr= ParaverRecordNextNumNth(str, 3);
+  char *ptr= PrvFile_nthRecNum(str, 3);
   for(int i= 0; i< *cs; ++i) {
-    ptr= ParaverRecordNextNum(ptr);
+    ptr= PrvFile_nextRecNum(ptr);
     crs[i]= atoi(ptr)- 1;
   }
   return *cs;
 }
-inline static int ParaverFileReadComms(const ParaverFile *const file,
-                                       int *const cs, int **const crs)
+
+inline static int PrvFile_readComms(const ParaverFile *const file,
+                                    int *const cs, int **const crs)
 {
   if(file->numComms< 1) {
     return 0;
   }
 
-  int ret= fseeko(file->fp, file->communicatorsAt, SEEK_SET);
-  if(-1== ret) {
-    printf("%s: cannot reload communicators!\n", __func__);
+  if(-1== fseeko(file->fp, file->commsPos, SEEK_SET)) {
+    fprintf(stderr, "%s: Cannot rewind communicators in file!\n", __func__);
     return -1;
   }
 
   char *str; size_t n= 0;
   ssize_t len= getline(&str, &n, file->fp);
   if(-1== len) {
-    printf("%s: Call to getline() failed.\n", __func__);
+    fprintf(stderr, "%s: Call to getline() failed.\n", __func__);
   }
-  int ncps= paraverFileReadOneComm(str, 0, cs, crs[0]);
+  int ncps= prvFile_readOneComm(str, 0, cs, crs[0]);
   for(int ic= 1; ic< file->numComms; ++ic) {
     crs[ic]= crs[ic- 1]+ ncps;
     len= getline(&str, &n, file->fp);
-    ncps= paraverFileReadOneComm(str, ic, cs+ ic, crs[ic]);
+    ncps= prvFile_readOneComm(str, ic, cs+ ic, crs[ic]);
   }
   if(NULL!= str) {
     free(str);
@@ -272,22 +605,22 @@ inline static int ParaverFileReadComms(const ParaverFile *const file,
   return 0;
 }
 
-inline static int ParaverFileReloadRecords(const ParaverFile *const file)
+inline static int PrvFile_reloadRecords(const ParaverFile *const file)
 {
-  int ret= fseeko(file->fp, file->recordsAt, SEEK_SET);
+  int ret= fseeko(file->fp, file->recsPos, SEEK_SET);
   if(-1== ret) {
-    printf("%s: cannot reload records!\n", __func__);
+    fprintf(stderr, "%s: Cannot reload records!\n", __func__);
   }
   return ret;
 }
 
-inline static size_t paraverFileGetLastNewlinePos(const char *const buf,
-                                                  const size_t buflen, const size_t len)
+inline static size_t prvFile_lastNewlinePos(const char *const buf,
+                                            const size_t buflen, const size_t len)
 {
   size_t ret= ULLONG_MAX;
   if('\0'== buf[0]|| 0== buflen) {
     char tmp[11]= { '\0' }; strncpy(tmp, buf, 10);
-    printf("returning ULLONG_MAX (buffer= \"%s\", buflen= %lu\n", tmp, buflen);
+    fprintf(stderr, "%s: Empty buffer, returning ULLONG_MAX (buffer= \"%s\", len= %lu)\n", __func__, tmp, buflen);
     return ret;
   }
   size_t i= 0== len? buflen- 1: len- 1;
@@ -301,8 +634,8 @@ inline static size_t paraverFileGetLastNewlinePos(const char *const buf,
   }
   return ret;
 }
-inline static void paraverFileProcessBuffer(char *const buf,
-                                            void (*process)(char *const))
+inline static void prvFile_processBuffer(char *const buf,
+                                         void (*process)(char *const))
 {
   char *ptr= strtok(buf, "\n");
   while(NULL!= ptr) {
@@ -310,26 +643,27 @@ inline static void paraverFileProcessBuffer(char *const buf,
     ptr= strtok(NULL, "\n");
   }
 }
-inline static double IOTimer_s()
+inline static double prvFile_timer_s()
 {
   struct timespec ts;
   if(0!= clock_gettime(CLOCK_MONOTONIC, &ts)) {
-    printf("Error obtaining clock-value\n");
+    fprintf(stderr, "%s: Error obtaining clock-value\n", __func__);
     return -1.0;
   }
   return ts.tv_sec+ (ts.tv_nsec* 1.0e-9);
 }
-/* returns time in seconds spent in fread() */
-inline static double ParaverFileProcess(ParaverFile *const file,
-                                        const bool silently)
+
+inline static double PrvFile_process(ParaverFile *const file,
+                                     const int verbosity)
 {
   if(NULL== file->lineProcessor) {
     return 0.0;
   }
-  const size_t numBytes= (size_t) (file->size- file->recordsAt);
-  if(!silently) {
-    printf("Size after comms section: %.1lf MB\n",
-           ((double) numBytes)/ 1024.0/ 1024.0);
+  const size_t numBytes= (size_t) (file->size- file->recsPos);
+  if(verbosity> 1) {
+    if(verbosity> 2) {
+      printf("Trace body size: %.1lf MB\n", ((double) numBytes)/ 1024.0/ 1024.0);
+    }
     printf("Processed %02d%%...", 0); fflush(stdout);
   }
   const size_t buflen= 32* 1024* 1024;
@@ -337,24 +671,24 @@ inline static double ParaverFileProcess(ParaverFile *const file,
   size_t car= 0, rem= buflen- 1, numBytesRead= 0, numBytesProcessed= 0;
 
   FILE *fp= file->fp;
-  double ioTime= -IOTimer_s();
+  double ioTime= -prvFile_timer_s();
   while(0!= (numBytesRead= fread(buf+ car, 1, rem, fp)+ car)) {
-    size_t len= paraverFileGetLastNewlinePos(buf, buflen, numBytesRead);
+    ioTime+= prvFile_timer_s();
+    size_t len= prvFile_lastNewlinePos(buf, buflen, numBytesRead);
     buf[len]= '\0';
     numBytesProcessed+= len+ 1;
-    ioTime+= IOTimer_s();
-    paraverFileProcessBuffer(buf, file->lineProcessor);
+    prvFile_processBuffer(buf, file->lineProcessor);
     car= numBytesRead- len- 1;
     rem= numBytesRead- car;
     memmove(buf, buf+ len+ 1, car);
-    if(!silently) {
+    if(verbosity> 1) {
       printf("\rProcessed %02d%%...", (int) (numBytesProcessed* 100/ numBytes));
       fflush(stdout);
     }
-    ioTime-= IOTimer_s();
+    ioTime-= prvFile_timer_s();
   }
-  ioTime+= IOTimer_s();
-  if(!silently) {
+  ioTime+= prvFile_timer_s();
+  if(verbosity> 1) {
     printf("\n"); fflush(stdout);
   }
   if(NULL!= buf) {
@@ -364,8 +698,9 @@ inline static double ParaverFileProcess(ParaverFile *const file,
   return ioTime;
 }
 
-#define NUM_MPI_FUNCS 194
-static const char *ParaverMPINames[NUM_MPI_FUNCS]= {
+/** @brief MPI function name table, indexed by Paraver event id (0-216). */
+#define NUM_MPI_FUNCS 216
+static const char *PrvMPINames[NUM_MPI_FUNCS]= {
   /* 0-8 */
   "Useful", "Send", "Recv", "Isend", "Irecv", "Wait", "Waitall", "Bcast", "Barrier",
   /* 9-15 */
@@ -442,16 +777,32 @@ static const char *ParaverMPINames[NUM_MPI_FUNCS]= {
   "Fetch_and_op", "Compare_and_swap", "Win_flush", "Win_flush_all",
   /* 188-192 */
   "Win_flush_local", "Win_flush_local_all", "Mprobe", "Improbe", "Mrecv",
-  /* 193-193 */
-  "Imrecv",
+  /* 193-196 */
+  "Imrecv", "Comm_split_type", "File_write_all_begin", "File_write_all_end",
+  /* 197-199 */
+  "File_read_all_begin", "File_read_all_end", "File_write_at_all_begin",
+  /* 200-202 */
+  "File_write_at_all_end", "File_read_at_all_begin", "File_read_at_alll_end",
+  /* 203-205 */
+  "File_read_ordered", "File_read_ordered_begin", "File_read_ordered_end",
+  /* 206-208 */
+  "File_read_shared", "File_write_ordered", "File_write_ordered_begin",
+  /* 209-211 */
+  "File_write_ordered_end", "File_write_shared", "Comm_dup_with_info",
+  /* 212-215 */
+  "Dist_graph_create_adjacent", "Comm_create_group", "Exscan", "Iexscan",
 };
-inline static const char *ParaverFileGetMPIName(const int ev)
+inline static const char *PrvFile_MPIName(const int eventId)
 {
-  if(ev> -1&& ev< NUM_MPI_FUNCS) {
-    return ParaverMPINames[ev];
+  if(eventId> -1&& eventId< NUM_MPI_FUNCS) {
+    return PrvMPINames[eventId];
   }
   return NULL;
 }
 #undef NUM_MPI_FUNCS
 
-#endif  /* PARAVER_FILE_READER_H__ */
+/* -------------------------------------------------------------------------- */
+/* END of private APIs of this library                                        */
+/* -------------------------------------------------------------------------- */
+
+#endif  /* CLOCKTALK_PARAVER_PARAVER_FILE_H__ */
