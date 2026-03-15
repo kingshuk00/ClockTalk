@@ -89,15 +89,15 @@ TraceData *CreateTrace(const ParaverFile *const file)
   TraceData *t= (TraceData *) malloc(sizeof(TraceData));
   memset(t, 0, sizeof(TraceData));
 
-  t->runtime= ParaverFileGetRuntime(file);
-  memcpy(t->timeunit, ParaverFileGetTimeUnit(file), 3);
-  t->numnodes= ParaverFileGetNumNodes(file);
-  t->numapps= ParaverFileGetNumApps(file);
+  t->runtime= PrvFile_runTime(file);
+  memcpy(t->timeunit, PrvFile_timeUnit(file), 3);
+  t->numnodes= PrvFile_numNodes(file);
+  t->numapps= PrvFile_numApps(file);
 
-  allocComms(t, ParaverFileGetNumComms(file), ParaverFileGetAllCommsSizes(file));
-  ParaverFileReadComms(file, t->comms.sizes, t->comms.ranks);
+  allocComms(t, PrvFile_numComms(file), PrvFile_allCommsSizes(file));
+  PrvFile_readComms(file, t->comms.sizes, t->comms.ranks);
 
-  t->numprocs= ParaverFileGetNumProcs(file);
+  t->numprocs= PrvFile_numProcs(file);
 
   allocLevel0Data(t);
   initLevel0Data(t);
