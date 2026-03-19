@@ -12,7 +12,7 @@
 #include"build_info.h"
 #include"common.h"
 #include"utils.h"
-#include"arg_opt_parser.h"
+#include"opt_parser.h"
 #include"trace/trace.h"
 #include"collectives.h"
 #include"paraver/paraver_file.h"
@@ -889,9 +889,8 @@ again:
 
 int main(int argc, char *argv[])
 {
-  if(0!= ParseArgs(argc, argv)) {
-    ArgHelp();
-    return 0;
+  if(0!= ParseOpts(argc, argv)) {
+    return 1;
   }
   PrintGlobalOpts();
 
