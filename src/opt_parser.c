@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.  All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2025      High Performance Computing Center Stuttgart,
  *                         University of Stuttgart. All rights reserved.
@@ -9,7 +9,7 @@
  */
 
 #include"build_info.h"
-#include"arg_opt_parser.h"
+#include"opt_parser.h"
 #include"common.h"
 #include"utils.h"
 #include<stdio.h>
@@ -21,14 +21,14 @@
 #endif
 #include"argp.h"
 
-static void printVersion(const char *const name)
-{
-  printf("%s (%s on %s at %s) %s\n\n", name, CT_COMPILER,
-         CT_BUILD_DATE, CT_BUILD_TIME, CT_VERSION);
-  printf("Copyright (C) 2026      Kingshuk Haldar. All rights reserved.\n\n");
-  printf("Copyright (C) 2025      High Performance Computing Center Stuttgart,\n"
-         "                        University of Stuttgart. All rights reserved.\n");
-}
+const char *argp_program_version= "ClockTalk "CT_VERSION"\n  Compiled with "
+  CT_COMPILER" on "CT_BUILD_DATE" at "CT_BUILD_TIME"\n\n"
+  "  Copyright (C) 2026 Kingshuk Haldar. All rights reserved.\n\n"
+  "  Copyright (C) 2025 High Performance Computing Center Stuttgart,\n"
+  "                     University of Stuttgart. All rights reserved.\n";
+
+const char *argp_program_bug_address=
+  "<https://github.com/kingshuk00/ClockTalk/issues/new>";
 
 GlobalOpts GlOpts= { NULL, { 0, 1, false, false, false }, { 0.0, -1, false }, { -1, 0, false }, {32768.0, { false, false, false } } };
 
@@ -243,10 +243,10 @@ static error_t parseSimOpts(int key, char *arg, struct argp_state *state)
     interpretSpecialEvtsOpts(opts, arg);
     break;
   case ARGP_KEY_ARG:
-    printf("ARGP_KEY_ARG(sim)\n");
+    /* printf("ARGP_KEY_ARG(sim)\n"); */
     break;
   case ARGP_KEY_ARGS:
-    printf("ARGP_KEY_ARGS(sim)\n");
+    /* printf("ARGP_KEY_ARGS(sim)\n"); */
     break;
   case ARGP_KEY_NO_ARGS:
     /* printf("ARGP_KEY_NO_ARGS(sim)\n"); */
@@ -264,10 +264,10 @@ static error_t parseSimOpts(int key, char *arg, struct argp_state *state)
     /* printf("ARGP_KEY_FINI(sim)\n"); */
     break;
   case ARGP_KEY_ERROR:
-    printf("ARGP_KEY_ERROR(sim)\n");
+    /* printf("ARGP_KEY_ERROR(sim)\n"); */
     break;
   default:
-    printf("Where are you (sim)? (0x%x)\n", key);
+    /* printf("Where are you (sim)? (0x%x)\n", key); */
     return ARGP_ERR_UNKNOWN;
     break;
   }
@@ -283,30 +283,23 @@ static struct argp_child childrenOpts[]= {
   { 0 }
 };
 
-static struct argp_option mainOpts[]= {
-  {"version", 'V', NULL, 0, NULL, 0 },
-  { 0 }
-};
+static struct argp_option mainOpts[]= { { 0 } };
 static error_t parseMainOpts(int, char *, struct argp_state *);
 
 const char *const mainArgDesc= "<paraver-file-name>";
 const char *const progDesc=
-  "ClockTalk - a trace replay tool for critical path from Paraver file\n\n"
+  "ClockTalk - Trace replay for critical path from Paraver trace files\n\n"
   "Program options:";
 struct argp mainOptsParser= { mainOpts, parseMainOpts, mainArgDesc, progDesc, childrenOpts };
 static error_t parseMainOpts(int key, char *arg, struct argp_state *state)
 {
   GlobalOpts *opts= state->input;
   switch(key) {
-  case 'V':
-    printVersion(state->name);
-    exit(0);
-    break;
   case ARGP_KEY_ARG:
     opts->filename= strdup(arg); /* this is not C, but POSIX  */
     break;
   case ARGP_KEY_ARGS:
-    printf("ARGP_KEY_ARGS(main)\n");
+    /* printf("ARGP_KEY_ARGS(main): \"%s\"\n", arg); */
     break;
   case ARGP_KEY_NO_ARGS:
     argp_usage(state);
@@ -327,10 +320,10 @@ static error_t parseMainOpts(int key, char *arg, struct argp_state *state)
     /* printf("ARGP_KEY_FINI(main)\n"); */
     break;
   case ARGP_KEY_ERROR:
-    printf("ARGP_KEY_ERROR(main)\n");
+    /* printf("ARGP_KEY_ERROR(main)\n"); */
     break;
   default:
-    printf("Where are you (main)? (0x%x)\n", key);
+    /* printf("Where are you (main)? (0x%x)\n", key); */
     return ARGP_ERR_UNKNOWN;
     break;
   }
@@ -338,7 +331,7 @@ static error_t parseMainOpts(int key, char *arg, struct argp_state *state)
   return 0;
 }
 
-int ParseArgs(const int argc, char **argv)
+int ParseOpts(const int argc, char **argv)
 {
   argp_parse(&mainOptsParser, argc, argv, 0, 0, &GlOpts);
   int ret= 0;
@@ -371,10 +364,9 @@ int ParseArgs(const int argc, char **argv)
     }
   }
 
+  if(0!= ret) {
+    argp_help(&mainOptsParser, stdout, ARGP_HELP_LONG, NULL);
+  }
   return ret;
 }
 
-void ArgHelp()
-{
-  argp_help(&mainOptsParser, stdout, ARGP_HELP_LONG, NULL);
-}

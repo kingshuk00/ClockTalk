@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
  *                         University of Stuttgart.  All rights reserved.
@@ -9,8 +8,8 @@
  *
  */
 
-#ifndef REPLAY_PARAVER_H__
-#define REPLAY_PARAVER_H__
+#ifndef CLOCKTALK_PARAVER_PARAVER_H__
+#define CLOCKTALK_PARAVER_PARAVER_H__
 
 #include<stdbool.h>
 
@@ -70,4 +69,4 @@ inline static bool ParaverCollEvtIsDimemasCompliant(const int evtId)
   return ret;
 }
 
-#endif  /* REPLAY_PARAVER_H__ */
+#endif  /* CLOCKTALK_PARAVER_PARAVER_H__ */
