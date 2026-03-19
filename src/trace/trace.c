@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
@@ -221,7 +220,7 @@ inline static void TraceConnectProcRecvIxToEvtRecvs(const int p,
   TraceConnectProcMsgIxToEvtMsgList(TraceGetPtrEvtRecvs(1),
                                     TraceGetGidProcEvtAt(p, at[1], 1), ixr1);
 }
-void TraceConnectEvtsToMsgs()
+void TraceConnectEvtsToMsgs(const int diag)
 {
   /* move to alloc-init-level-1 data later */
 
@@ -244,7 +243,7 @@ void TraceConnectEvtsToMsgs()
 
   const int np= TraceGetNumProcs();
 
-  if(GlOpts.show_opts.diag> 0) {
+  if(diag> 0) {
     long total= 0;
     for(int ip= 0; ip< np; ++ip) {
       total+= TraceGetNumProcSends(ip);

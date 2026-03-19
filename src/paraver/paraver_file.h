@@ -436,6 +436,7 @@ inline static off_t prvfile_readHeader(FILE *fp, char **headerp, size_t *headerL
 }
 inline static ParaverFile *PrvFile_open(const char *const fn)
 {
+  FILE *fp= NULL;
   ParaverFile *file= (ParaverFile *) malloc(sizeof(ParaverFile));
   if(NULL== file) {
     fprintf(stderr, "%s: Error allocating memroy\n", __func__);
@@ -443,7 +444,7 @@ inline static ParaverFile *PrvFile_open(const char *const fn)
   }
   memset(file, 0, sizeof(ParaverFile));
 
-  FILE *fp= fopen(fn, "r");
+  fp= fopen(fn, "r");
   if(NULL== fp) {
     fprintf(stderr, "%s: Error opening file-\"%s\"\n", __func__, fn);
     goto bad;

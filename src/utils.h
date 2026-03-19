@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2025      High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
@@ -16,12 +15,14 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<time.h>
+#include<math.h>
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #define MIN(a,b) ((a)<(b)?(a):(b))
+  
 
 #define FREE_IF(x)                              \
 if(NULL!= x) {                                  \
@@ -76,14 +77,23 @@ inline static char **Alloc2d(const long nr, const long *const nperrow,
   return x;
 }
 
-#define ErrorIf(cond, ...) do { if(0!= GlOpts.show_opts.error&& (cond)) { printf("*** " __VA_ARGS__); } } while (false)
-#define Error(...) do { if(0!= GlOpts.show_opts.error) { printf("*** " __VA_ARGS__); } } while (false)
-#define ErrorNL(...) do { if(0!= GlOpts.show_opts.error) { printf("\n*** " __VA_ARGS__); } } while (false)
+extern int (*upErr)(const char *restrict format, ...);
 
-#define Debug(n, ...) do { if(n<= GlOpts.show_opts.diag) { printf("DEBUG: " __VA_ARGS__); } } while (false)
-#define Debug1(...) Debug(1, __VA_ARGS__)
-#define Debug2(...) Debug(2, __VA_ARGS__)
-#define Debug3(...) Debug(3, __VA_ARGS__)
+extern int (*upDbg1)(const char *restrict format, ...);
+extern int (*upDbg2)(const char *restrict format, ...);
+extern int (*upDbg3)(const char *restrict format, ...);
+extern int (*upDbg4)(const char *restrict format, ...);
+extern int (*upDbg5)(const char *restrict format, ...);
+
+#define ErrorIf(cond, ...) do { if((cond)) { upErr("*** " __VA_ARGS__); } } while (false)
+#define Error(...) do { upErr("*** " __VA_ARGS__); } while (false)
+#define ErrorNL(...) do { upErr("\n*** " __VA_ARGS__); } while (false)
+
+#define Debug1(...) do { upDbg1("DEBUG: " __VA_ARGS__); } while (false)
+#define Debug2(...) do { upDbg2("DEBUG: " __VA_ARGS__); } while (false)
+#define Debug3(...) do { upDbg3("DEBUG: " __VA_ARGS__); } while (false)
+#define Debug4(...) do { upDbg4("DEBUG: " __VA_ARGS__); } while (false)
+#define Debug5(...) do { upDbg5("DEBUG: " __VA_ARGS__); } while (false)
 
 #define Log(n, ...) do { if(n<= GlOpts.show_opts.diag) { printf("LOG: " __VA_ARGS__); } } while (false)
 #define Log1(...) Log(1, __VA_ARGS__)

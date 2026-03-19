@@ -1,8 +1,10 @@
 /*
- * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
- * Authors: Kingshuk Haldar <kingshuk.haldar@hlrs.de>
+ * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
+ *                         University of Stuttgart. All rights reserved.
+ *
+ * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
  */
 
@@ -598,7 +600,7 @@ inline static void TraceSetProcSendRecvGids(const int psend, const int precv)
 }
 
 /* event to send/recv connection */
-extern void TraceConnectEvtsToMsgs();
+extern void TraceConnectEvtsToMsgs(const int);
 
 /* inline static bool TraceHasCurrProcEvtSendStart(const int p) { return TraceGetProcEvtsSends(p, TraceGetGidCurrProcEvt(p)); } */
 

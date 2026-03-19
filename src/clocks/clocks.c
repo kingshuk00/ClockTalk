@@ -124,11 +124,6 @@ void ClockPlay(const int p, const double t, const int evt)
 
   elapse(p, t, evt);
 
-  if(GlOpts.evt_mon.rank== p) {
-    /* /\* TlOutput(maxElapsed(), maxTraced(p), Clocks.critical[pOfMaxCritical()], maxUseful(), avgUseful()); *\/ */
-    /* TlOutput(elapsed(p), traced(p), critical(p), useful(p), avgUseful()); */
-  }
-
   Debug1("%d: clock-play at %.0lf, critical: %.0lf\n", p, elapsed(p),
          critical(p));
 }
