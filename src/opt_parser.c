@@ -30,19 +30,17 @@ const char *argp_program_version= "ClockTalk "CT_VERSION"\n  Compiled with "
 const char *argp_program_bug_address=
   "<https://github.com/kingshuk00/ClockTalk/issues/new>";
 
-GlobalOpts GlOpts= { NULL, { 0, 1, false, false, false }, { 0.0, -1, false }, { -1, 0, false }, {32768.0, { false, false, false } } };
-
-inline static void interpretSpecialEvtsOpts(GlobalOpts *const opts,
+inline static void interpretSpecialEvtsOpts(ClockTalkSimOpts *const opts,
                                             char *const optArg)
 {
   char *ptr= strtok(optArg, ",\n ");
   while(NULL!= ptr) {
     if(0== strcmp("overhead", ptr)) {
-      opts->sim_opts.ignore.trace_evts= true;
+      opts->ignore.overhead= true;
     } else if(0== strcmp("flush", ptr)) {
-      opts->sim_opts.ignore.flush_evts= true;
-    } else if(0== strcmp("traceability", ptr)) {
-      opts->sim_opts.ignore.disabled_tracing= true;
+      opts->ignore.flush= true;
+    } else if(0== strcmp("untraced", ptr)) {
+      opts->ignore.untraced= true;
     } else {
       printf("Unknown process option for special events (%s)\n", ptr);
     }
@@ -50,7 +48,7 @@ inline static void interpretSpecialEvtsOpts(GlobalOpts *const opts,
   }
 }
 
-inline static void interpretEagerLimitOpt(GlobalOpts *const opts,
+inline static void interpretEagerLimitOpt(ClockTalkSimOpts *const opts,
                                           char *const optArg)
 {
   if(NULL!= optArg) {
@@ -63,32 +61,30 @@ inline static void interpretEagerLimitOpt(GlobalOpts *const opts,
     sscanf(optArg, "%*d%c", &u);
     switch(u) {
     case 'B':
-      opts->sim_opts.eager_limit= (double) x;
+      opts->eagerLimit= (double) x;
       break;
     case 'M':
-      opts->sim_opts.eager_limit= (double)(x<<20);
+      opts->eagerLimit= (double)(x<<20);
       break;
     case 'G':
-      opts->sim_opts.eager_limit= (double)(x<<30);
+      opts->eagerLimit= (double)(x<<30);
       break;
     case 'k':                 /* fall-through */
     default:
-      opts->sim_opts.eager_limit= (double)(x<<10);
+      opts->eagerLimit= (double)(x<<10);
       break;
     }
-  } else {
-    /* printf("Problem\n"); */
   }
 }
 
-inline static void interpretMonTypes(GlobalOpts *const opts, char *const optArg)
+inline static void interpretMonTypes(ClockTalkMonOpts *const opts, char *const optArg)
 {
   char *ptr= strtok(optArg, ",\n ");
   while(NULL!= ptr) {
     if(0== strcmp("window", ptr)) {
-      opts->win_mon.enabled= true;
+      opts->win.isOn= true;
     } else if(0== strcmp("event", ptr)) {
-      opts->evt_mon.enabled= true;
+      opts->evt.isOn= true;
     } else {
       printf("Unknown process option for monitor-types (%s)\n", ptr);
     }
@@ -106,49 +102,25 @@ static struct argp_option showOpts[]= {
 };
 static error_t parseShowOpts(int key, char *arg, struct argp_state *state)
 {
-  GlobalOpts *opts= state->input;
+  ClockTalkShowOpts *opts= state->input;
   switch(key) {
   case 'R':
-    opts->show_opts.diag= NULL!= arg? atoi(arg): 1;
+    opts->diag= NULL!= arg? atoi(arg): 1;
     break;
   case 'E':
-    opts->show_opts.error= NULL!= arg? atoi(arg): 1;
+    opts->error= NULL!= arg? atoi(arg): 1;
     break;
   case 'T':
-    opts->show_opts.timings= true;
+    opts->timings= true;
     break;
   case 'X':
-    opts->show_opts.profile= true;
+    opts->profile= true;
     break;
   case 'P':
-    opts->show_opts.pretty= true;
-    break;
-  case ARGP_KEY_ARG:
-    printf("ARGP_KEY_ARG(show)\n");
-    break;
-  case ARGP_KEY_ARGS:
-    printf("ARGP_KEY_ARGS(show)\n");
-    break;
-  case ARGP_KEY_NO_ARGS:
-    /* printf("ARGP_KEY_NO_ARGS(show)\n"); */
-    break;
-  case ARGP_KEY_INIT:
-    /* printf("ARGP_KEY_INIT(show)\n"); */
-    break;
-  case ARGP_KEY_END:
-    /* printf("ARGP_KEY_END(show)\n"); */
-    break;
-  case ARGP_KEY_SUCCESS:
-    /* printf("ARGP_KEY_SUCCESS(show)\n"); */
-    break;
-  case ARGP_KEY_FINI:
-    /* printf("ARGP_KEY_FINI(show)\n"); */
-    break;
-  case ARGP_KEY_ERROR:
-    printf("ARGP_KEY_ERROR(show)\n");
+    opts->pretty= true;
     break;
   default:
-    printf("Where are you (show)? (0x%x)\n", key);
+    /* printf("Where are you (show)? (0x%x)\n", key); */
     return ARGP_ERR_UNKNOWN;
     break;
   }
@@ -160,65 +132,41 @@ static struct argp showOptsParser= { showOpts, parseShowOpts, 0 };
 struct argp_option monOpts[]= {
   { "monitors", 'm', "window,event", 0, "Type of monitoring to perform", 0 },
   { "wmon-len", 2101, "1.0e9", 0, "Monitoring window in ns (default: 1e9 ns)", 1 },
-  { "wmon-sma", 2102, "1", 0, "#windows for simple moving average (default: 1)", 1 },
+  { "wmon-nwins", 2102, "1", 0, "#windows for simple moving average (default: 1)", 1 },
   { "emon-rank", 2201, "0", 0, "Event-based monitoring rank (default: 0)", 2 },
   { "emon-nevts", 2202, "1", 0, "#events accumulated per data-point (default: 1)", 2 },
   { 0 }
 };
 static error_t parseMonOpts(int key, char *arg, struct argp_state *state)
 {
-  GlobalOpts *opts= state->input;
+  ClockTalkMonOpts *opts= state->input;
   switch(key) {
   case 'm':
     interpretMonTypes(opts, arg);
     break;
   case 2101:
-    opts->win_mon.win_len= atof(arg);
-    ErrorIf(opts->win_mon.win_len< 0.9,
-            "Invalid monitoring window length (%.9e ns)\n", opts->win_mon.win_len);
+    opts->win.len= atof(arg);
+    ErrorIf(opts->win.len< 0.9,
+            "Invalid monitoring window length (%.9e ns)\n", opts->win.len);
     break;
   case 2102:
-    opts->win_mon.nwins_sma= atoi(arg);
-    ErrorIf(opts->win_mon.nwins_sma< 0.9,
-            "Invalid #windows for moving-average (%d)\n", opts->win_mon.nwins_sma);
+    opts->win.num= atoi(arg);
+    ErrorIf(opts->win.num< 0.9,
+            "Invalid #windows for moving-average (%d)\n", opts->win.num);
     break;
   case 2201:
-    opts->evt_mon.rank= atoi(arg);
-    ErrorIf(opts->evt_mon.rank< 0,
-            "Invalid event-based monitoring rank (%d)\n", opts->evt_mon.rank);
+    opts->evt.rank= atoi(arg);
+    ErrorIf(opts->evt.rank< 0,
+            "Invalid event-based monitoring rank (%d)\n", opts->evt.rank);
     break;
   case 2202:
-    opts->evt_mon.nevts_report= atoi(arg);
-    ErrorIf(opts->evt_mon.nevts_report< 0,
+    opts->evt.num= atoi(arg);
+    ErrorIf(opts->evt.num< 0,
             "Invalid #events for event-based monitoring (%d)\n",
-            opts->evt_mon.nevts_report);
-    break;
-  case ARGP_KEY_ARG:
-    printf("ARGP_KEY_ARG(mon)\n");
-    break;
-  case ARGP_KEY_ARGS:
-    printf("ARGP_KEY_ARGS(mon)\n");
-    break;
-  case ARGP_KEY_NO_ARGS:
-    /* printf("ARGP_KEY_NO_ARGS(mon)\n"); */
-    break;
-  case ARGP_KEY_INIT:
-    /* printf("ARGP_KEY_INIT(mon)\n"); */
-    break;
-  case ARGP_KEY_END:
-    /* printf("ARGP_KEY_END(mon)\n"); */
-    break;
-  case ARGP_KEY_SUCCESS:
-    /* printf("ARGP_KEY_SUCCESS(mon)\n"); */
-    break;
-  case ARGP_KEY_FINI:
-    /* printf("ARGP_KEY_FINI(mon)\n"); */
-    break;
-  case ARGP_KEY_ERROR:
-    printf("ARGP_KEY_ERROR(mon)\n");
+            opts->evt.num);
     break;
   default:
-    printf("Where are you (mon)? (0x%x)\n", key);
+    /* printf("Where are you (mon)? (0x%x)\n", key); */
     return ARGP_ERR_UNKNOWN;
     break;
   }
@@ -229,42 +177,18 @@ static struct argp monOptsParser= { monOpts, parseMonOpts, 0 };
 
 static struct argp_option simOpts[]= {
   { "eager-limit", 3001, "32k", 0, "Eager limit (default: 32k)" },
-  { "ignore-events", 3002, "traceability,flush,overhead", 0, "Trace-events as useful (default: none)" },
+  { "ignore", 3002, "untraced,flush,overhead", 0, "Treat regions as useful (default: none)" },
   { 0 }
 };
 static error_t parseSimOpts(int key, char *arg, struct argp_state *state)
 {
-  GlobalOpts *opts= state->input;
+  ClockTalkSimOpts *opts= state->input;
   switch(key) {
   case 3001:
     interpretEagerLimitOpt(opts, arg);
     break;
   case 2102:
     interpretSpecialEvtsOpts(opts, arg);
-    break;
-  case ARGP_KEY_ARG:
-    /* printf("ARGP_KEY_ARG(sim)\n"); */
-    break;
-  case ARGP_KEY_ARGS:
-    /* printf("ARGP_KEY_ARGS(sim)\n"); */
-    break;
-  case ARGP_KEY_NO_ARGS:
-    /* printf("ARGP_KEY_NO_ARGS(sim)\n"); */
-    break;
-  case ARGP_KEY_INIT:
-    /* printf("ARGP_KEY_INIT(sim)\n"); */
-    break;
-  case ARGP_KEY_END:
-    /* printf("ARGP_KEY_END(sim)\n"); */
-    break;
-  case ARGP_KEY_SUCCESS:
-    /* printf("ARGP_KEY_SUCCESS(sim)\n"); */
-    break;
-  case ARGP_KEY_FINI:
-    /* printf("ARGP_KEY_FINI(sim)\n"); */
-    break;
-  case ARGP_KEY_ERROR:
-    /* printf("ARGP_KEY_ERROR(sim)\n"); */
     break;
   default:
     /* printf("Where are you (sim)? (0x%x)\n", key); */
@@ -288,39 +212,23 @@ static error_t parseMainOpts(int, char *, struct argp_state *);
 
 const char *const mainArgDesc= "<paraver-file-name>";
 const char *const progDesc=
-  "ClockTalk - Trace replay for critical path from Paraver trace files\n\n"
-  "Program options:";
+  "ClockTalk - Trace replay for critical path from Paraver trace files\n";
 struct argp mainOptsParser= { mainOpts, parseMainOpts, mainArgDesc, progDesc, childrenOpts };
 static error_t parseMainOpts(int key, char *arg, struct argp_state *state)
 {
-  GlobalOpts *opts= state->input;
+  ClockTalkOpts *const opts= (ClockTalkOpts *) state->input;
   switch(key) {
   case ARGP_KEY_ARG:
-    opts->filename= strdup(arg); /* this is not C, but POSIX  */
-    break;
-  case ARGP_KEY_ARGS:
-    /* printf("ARGP_KEY_ARGS(main): \"%s\"\n", arg); */
+    FREE_IF(opts->filename);
+    opts->filename= strdup(arg); /* strdup() is not C, but POSIX  */
     break;
   case ARGP_KEY_NO_ARGS:
     argp_usage(state);
     break;
   case ARGP_KEY_INIT:
-    for(int i= 0; i< 3; ++i) {
-      state->child_inputs[i]= &GlOpts;
-    }
-    /* printf("ARGP_KEY_INIT(main)\n"); */
-    break;
-  case ARGP_KEY_END:
-    /* printf("ARGP_KEY_END(main)\n"); */
-    break;
-  case ARGP_KEY_SUCCESS:
-    /* printf("ARGP_KEY_SUCCESS(main)\n"); */
-    break;
-  case ARGP_KEY_FINI:
-    /* printf("ARGP_KEY_FINI(main)\n"); */
-    break;
-  case ARGP_KEY_ERROR:
-    /* printf("ARGP_KEY_ERROR(main)\n"); */
+    state->child_inputs[0]= &(opts->show);
+    state->child_inputs[1]= &(opts->mon);
+    state->child_inputs[2]= &(opts->sim);
     break;
   default:
     /* printf("Where are you (main)? (0x%x)\n", key); */
@@ -331,42 +239,48 @@ static error_t parseMainOpts(int key, char *arg, struct argp_state *state)
   return 0;
 }
 
-int ParseOpts(const int argc, char **argv)
+ClockTalkOpts *ParseOpts(const int argc, char **argv)
 {
-  argp_parse(&mainOptsParser, argc, argv, 0, 0, &GlOpts);
-  int ret= 0;
+  ClockTalkOpts *opts= (ClockTalkOpts *) malloc(sizeof(ClockTalkOpts));
+  memset(opts, 0, sizeof(ClockTalkOpts));
 
-  if(NULL== GlOpts.filename) {
-    ret= 1;
+  argp_parse(&mainOptsParser, argc, argv, 0, 0, opts);
+
+  if(NULL== opts->filename) {
+    goto bad;
   }
 
-  if(GlOpts.win_mon.enabled) {
-    if(GlOpts.win_mon.win_len< 0.9) {
+  if(opts->mon.win.isOn) {
+    if(opts->mon.win.len< 0.9) {
       printf("Windowed monitoring: window-length is invalid (1.0e9 ns)\n");
-      GlOpts.win_mon.win_len= 1.0e9;
+      opts->mon.win.len= 1.0e9;
     }
 #if 0
-    if(GlOpts.win_mon.nwins_sma< 1) {
+    if(opts->mon.win.num< 1) {
       printf("Windowed monitoring: #windows for SMA is invalid (1)\n");
-      GlOpts.win_mon.nwins_sma= 1;
+      opts->mon.win.num= 1;
     }
 #endif
   }
 
-  if(GlOpts.evt_mon.enabled) {
-    if(GlOpts.evt_mon.rank< 0) {
+  if(opts->mon.evt.isOn) {
+    if(opts->mon.evt.rank< 0) {
       printf("Event-based monitoring: rank is invalid (0)\n");
-      GlOpts.evt_mon.rank= 0;
+      opts->mon.evt.rank= 0;
     }
-    if(GlOpts.evt_mon.nevts_report< 1) {
+    if(opts->mon.evt.num< 1) {
       printf("Event-based monitoring: #events per report is invalid (1)\n");
-      GlOpts.evt_mon.nevts_report= 1;
+      opts->mon.evt.num= 1;
     }
   }
 
-  if(0!= ret) {
-    argp_help(&mainOptsParser, stdout, ARGP_HELP_LONG, NULL);
-  }
-  return ret;
+  goto bye;
+
+ bad:
+  FREE_IF(opts);
+  argp_help(&mainOptsParser, stdout, ARGP_HELP_LONG, NULL);
+
+ bye:
+  return opts;
 }
 

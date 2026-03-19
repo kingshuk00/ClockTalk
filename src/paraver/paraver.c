@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
@@ -546,7 +545,7 @@ static void MPIEvtsAndCommsReader(char *const line)
     break;
   }
 }
-static void finishRead(const int np)
+static void finishRead(const int np, ClockTalkMonOpts *const monOpts)
 {
   if(TraceGetNumEvts()!= TraceGetIterEvts()) {
     Error("#events= %ld, event-iter= %ld\n",
@@ -590,9 +589,9 @@ static void finishRead(const int np)
     Debug1("collective-count check successful\n");
   }
 
-  if(GlOpts.evt_mon.enabled) {
+  if(monOpts->evt.isOn) {
     printf("Event-driven monitoring rank:");
-    if(GlOpts.evt_mon.rank< 0|| GlOpts.evt_mon.rank>= TraceGetNumProcs()) {
+    if(monOpts->evt.rank< 0|| monOpts->evt.rank>= TraceGetNumProcs()) {
       int pMaxUseful= 0;
       for(int ip= 1; ip< TraceGetNumProcs(); ++ip) {
         if(TraceGetProcCompDuration(ip)- TraceGetProcCompDuration(pMaxUseful)> 0.1) {
@@ -600,10 +599,10 @@ static void finishRead(const int np)
         }
       }
 
-      printf(" %d ->", GlOpts.evt_mon.rank);
-      GlOpts.evt_mon.rank= pMaxUseful;
+      printf(" %d ->", monOpts->evt.rank);
+      monOpts->evt.rank= pMaxUseful;
     }
-    printf(" %d\n", GlOpts.evt_mon.rank);
+    printf(" %d\n", monOpts->evt.rank);
   }
 }
 
@@ -620,11 +619,8 @@ inline static int determineHeaderLens(const int n, const double *const avg,
   const int ranklen= (int) floor(log10((double) np))+ 1;
   return MAX(ranklen, 4);
 }
-static void showAggregated(const int np)
+static void showAggregated(const int np, const char *const filename)
 {
-  if(!GlOpts.show_opts.profile) {
-    return;
-  }
 #define NAGG 11
   double avg[NAGG];
   memset(avg, 0, sizeof(double)* NAGG);
@@ -646,10 +642,10 @@ static void showAggregated(const int np)
 
   FILE *fp= NULL;
   {
-    const int len= strlen(GlOpts.filename)+ 26;
+    const int len= strlen(filename)+ 26;
     char *fn= (char *) malloc(sizeof(char)* len);
     memset(fn, 0, sizeof(char)* len);
-    memcpy(fn, GlOpts.filename, len- 26);
+    memcpy(fn, filename, len- 26);
     /* printf("fn0= \"%s\"\n", fn); */
     strcat(fn, ".clocktalk.aggregated.txt");
     /* printf("fn1= \"%s\", fn[-3]= '%c', fn[-2]= '%c', fn[-1]= '%c'\n", fn, fn[len- 3], fn[len- 2], fn[len- 1]); */
@@ -758,22 +754,24 @@ static void showAggregated(const int np)
 }
 
 inline static double processParaverFile(ParaverFile *const file,
-                                        void (*processor)(char *const))
+                                        void (*processor)(char *const),
+                                        const bool showTimings)
 {
   PrvFile_setLineProcessor(file, processor);
   PrvFile_reloadRecords(file);
-  return PrvFile_process(file, (GlOpts.show_opts.timings? 2: 0));
+  return PrvFile_process(file, (showTimings? 2: 0));
 }
-int ReadParaverFile(const char *const fn)
+int ReadParaverFile(ClockTalkOpts *const opts)
 {
-  ParaverFile *file= PrvFile_open(fn);
+  ParaverFile *file= PrvFile_open(opts->filename);
 
   SetWorkingTrace(CreateTrace(file));
 
   const int np= PrvFile_numProcs(file);
   allocLasts(np);
 
-  const double tioCount= processParaverFile(file, evtsAndCommsCounter);
+  const double tioCount= processParaverFile(file, evtsAndCommsCounter,
+                                            opts->show.timings);
   finishCount(np);              /* closes states */
 
   TraceAllocAndInitLevel1Data();
@@ -787,10 +785,13 @@ int ReadParaverFile(const char *const fn)
 
   initLasts(np);
 
-  const double tioRead= processParaverFile(file, MPIEvtsAndCommsReader);
-  finishRead(np);               /* match iter and nums */
+  const double tioRead= processParaverFile(file, MPIEvtsAndCommsReader,
+                                           opts->show.timings);
+  finishRead(np, &(opts->mon));               /* match iter and nums */
 
-  showAggregated(np);
+  if(opts->show.profile) {
+    showAggregated(np, opts->filename);
+  }
 
   freeLasts();
 

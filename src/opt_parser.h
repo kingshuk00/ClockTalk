@@ -11,6 +11,8 @@
 #ifndef CLOCKTALK_OPT_PARSER_H__
 #define CLOCKTALK_OPT_PARSER_H__
 
-extern int ParseOpts(const int, char **);
+typedef struct ClockTalkOpts_type_ ClockTalkOpts;
+
+extern ClockTalkOpts *ParseOpts(const int, char **);
 
 #endif  /* CLOCKTALK_OPT_PARSER_H__ */

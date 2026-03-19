@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2025      High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
@@ -15,12 +14,12 @@
 #include"utils.h"
 #include<float.h>
 
-inline static FILE *emFileOpen()
+inline static FILE *emFileOpen(const char *const basefilename)
 {
-  const int len= strlen(GlOpts.filename)+ 8;
+  const int len= strlen(basefilename)+ 8;
   char *fn= (char *) malloc(sizeof(char)* len);
   memset(fn, 0, sizeof(char)* len);
-  memcpy(fn, GlOpts.filename, sizeof(char)* (len- 8));
+  memcpy(fn, basefilename, sizeof(char)* (len- 8));
   /* printf("fn0= \"%s\"\n", fn); */
   strcat(fn, ".em.dat");
   /* printf("fn1= \"%s\", fn[-3]= '%c', fn[-2]= '%c', fn[-1]= '%c'\n", fn, fn[len- 3], fn[len- 2], fn[len- 1]); */
@@ -130,15 +129,15 @@ inline static void emOutput()
   fprintf(em.fp, " %.9e %.9e %.9e\n", emLbeLoc(), emSerLoc(),
           emTrfLoc()); /* 9 10 11 */
 }
-inline static void emInit(const int np)
+inline static void emInit(const int np, const ClockTalkOpts *const opts)
 {
-  em.fp= emFileOpen();
+  em.fp= emFileOpen(opts->filename);
   fprintf(em.fp, "%15s %15s %15s %15s %15s %15s %15s %15s %15s %15s %15s\n",
           "#elapsed-1", "traced-2", "ideal-3",
           "max-useful-4", "avg-useful-5", "cum-load-bal-6", "cum-ser-eff-7",
           "cum-xfer-eff-8",
           "loc-load-bal-9", "loc-ser-eff-10", "loc-xfer-eff-11");
-  em.nspans= GlOpts.evt_mon.nevts_report;
+  em.nspans= opts->mon.evt.num;
   em.history[0]= (double *) malloc(sizeof(double)* (em.nspans+ 1)* EM_NCOMPS);
   memset(em.history[0], 0, sizeof(double)* (em.nspans+ 1)* EM_NCOMPS);
   for(int i= 1; i< EM_NCOMPS; ++i) {
@@ -186,11 +185,11 @@ inline static void emFinalize()
 #undef EM_CRIT
 #undef EM_TRAC
 
-void DoMonitoringEventBased()
+void DoMonitoringEventBased(const ClockTalkOpts *const opts)
 {
   const int np= TraceGetNumProcs();
-  emInit(np);
-  const int r= GlOpts.evt_mon.rank;
+  emInit(np, opts);
+  const int r= opts->mon.evt.rank;
   double *const useful= em.clocks.useful;
   int *const state= em.clocks.curr.state;
   double *const since= em.clocks.curr.since;
@@ -235,12 +234,12 @@ void DoMonitoringEventBased()
   emFinalize();
 }
 
-inline static FILE *wmFileOpen()
+inline static FILE *wmFileOpen(const char *const basefilename)
 {
-  const int len= strlen(GlOpts.filename)+ 8;
+  const int len= strlen(basefilename)+ 8;
   char *fn= (char *) malloc(sizeof(char)* len);
   memset(fn, 0, sizeof(char)* len);
-  memcpy(fn, GlOpts.filename, sizeof(char)* (len- 8));
+  memcpy(fn, basefilename, sizeof(char)* (len- 8));
   /* printf("fn0= \"%s\"\n", fn); */
   strcat(fn, ".wm.dat");
   /* printf("fn1= \"%s\", fn[-3]= '%c', fn[-2]= '%c', fn[-1]= '%c'\n", fn, fn[len- 3], fn[len- 2], fn[len- 1]); */
@@ -249,7 +248,7 @@ inline static FILE *wmFileOpen()
   FREE_IF(fn);
   return fp;
 }
-void DoMonitoringWindowed()
+void DoMonitoringWindowed(const ClockTalkOpts *const opts)
 {
   const int np= TraceGetNumProcs();
 
@@ -309,12 +308,12 @@ void DoMonitoringWindowed()
     last.since[ip]= last.crit[ip]= t0; last.state[ip]= -1;
   }
 
-  FILE *fp= wmFileOpen();
+  FILE *fp= wmFileOpen(opts->filename);
   fprintf(fp, "%15s %15s %15s %15s %15s %15s %15s %15s\n",
           "#elapsed-1", "max-ideal-2", "avg-ideal-3", "max-useful-4", "avg-useful-5",
           "elapsed-loc-6", "ideal-loc-7", "min-nevts-8");
 
-  bin.step= GlOpts.win_mon.win_len;
+  bin.step= opts->mon.win.len;
   bin.tMin= t0;
   TraceResetProcIters();
   const double pfactor= 1.0/ ((double) np);

@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
@@ -51,24 +50,29 @@ inline static const char *pevtname(const int p) { return evt2name(pevt(p)); }
 inline static double tcevt(const int p) { return TraceGetAtCurrProcEvt(p); }
 inline static double tpevt(const int p) { return TraceGetAtPrevProcEvt(p); }
 
+static bool IgnoreOverhead(const int prev, const int curr)
+{
+  return -4== prev|| -4== curr;
+}
+static bool IgnoreFlush(const int prev, const int curr)
+{
+  return -3== prev|| -3== curr;
+}
+static bool IgnoreUntraced(const int prev, const int curr)
+{
+  return (-2== prev&& 0== curr)|| -2== curr;
+}
+static bool DontIgnore(const int prev, const int curr)
+{
+  return false;
+}
+static bool (*excuseOverhead)(const int, const int)= DontIgnore;
+static bool (*excuseFlush)(const int, const int)= DontIgnore;
+static bool (*excuseUntraced)(const int, const int)= DontIgnore;
 inline static bool excuse(const int prev, const int curr)
 {
-  if(GlOpts.sim_opts.ignore.trace_evts&& (-4== prev|| -4== curr)) {
-    return true;
-  }
-
-  if(GlOpts.sim_opts.ignore.flush_evts&& (-3== prev|| -3== curr)) {
-    return true;
-  }
-
-  if(GlOpts.sim_opts.ignore.disabled_tracing&& ((-2== prev&& 0== curr)||
-                                                -2== curr)) {
-    return true;
-  }
-
   ErrorIf(-99==curr, "Invalid state encountered\n");
-
-  return false;
+  return excuseOverhead(prev, curr)|| excuseFlush(prev, curr)|| excuseUntraced(prev, curr);
 }
 
 static void enterMPI_Init(const int p)
@@ -257,7 +261,7 @@ inline static bool classicNonblockingSendExit(const int p,
                                               const double *const t) { return NonblockingSendExit(p)&& SameTime(t[0], tpevt(p))&& SameTime(t[1], tcevt(p)); }
 
 /* returns 1 if this send is settled, 0 otherwise */
-static int settleOneSend(const int p, const long ix)
+static int settleOneSend(const int p, const long ix, const double eagerLimit)
 {
   int ret= 1; const char *msg= "default";
   double *const tsends= TraceGetProcSendAts(p, ix);
@@ -277,7 +281,7 @@ static int settleOneSend(const int p, const long ix)
     msg= "non-blocking"; goto settle;
   }
 
-  if(TraceGetProcSendSize(p, ix)< GlOpts.sim_opts.eager_limit) {
+  if(TraceGetProcSendSize(p, ix)< eagerLimit) {
     msg= "eager"; goto settle;
   }
 
@@ -304,13 +308,13 @@ bye:
 }
 /* returns 0 if all sends concluding at this event are settled */
 /* returns 1 otherwise: due to corresponding recvs not yet posted */
-static int settleSends(const int p)
+static int settleSends(const int p, const double eagerLimit)
 {
   IndexList *ixs= TraceGetCurrProcEvtSends(p, 1);
   int total= 0, settled= 0;
   while(NULL!= ixs) {
     ++total;
-    settled+= settleOneSend(p, ixs->i);
+    settled+= settleOneSend(p, ixs->i, eagerLimit);
     ixs= ixs->next;
   }
   return (total== settled? 0: 1);
@@ -381,9 +385,9 @@ static int settleRecvs(const int p)
   }
   return (total== settled? 0: 1);
 }
-static int settleMsgs(const int p)
+static int settleMsgs(const int p, const double eagerLimit)
 {
-  if(0!= settleSends(p)) {
+  if(0!= settleSends(p, eagerLimit)) {
     return 1;
   }
   if(0!= settleRecvs(p)) {
@@ -393,8 +397,7 @@ static int settleMsgs(const int p)
 }
 
 /* progresses as much as possible without talking */
-#if 1
-static int processRank(const int p)
+static int processRank(const int p, const double eagerLimit)
 {
   int movement= 0;
   while(TraceRemainsProcEvts(p)) {
@@ -408,7 +411,7 @@ static int processRank(const int p)
     if(e> 0) {                       /* enter MPI */
       ClockPauseMPI(p, t, e);
       postMsgs(p);
-      if(0!= settleMsgs(p)) {
+      if(0!= settleMsgs(p, eagerLimit)) {
         Debug1("%d: p2p: all msgs are not settled\n", p);
         break;
       }
@@ -424,7 +427,7 @@ static int processRank(const int p)
         break;
       }
       postMsgs(p);
-      if(0!= settleMsgs(p)) {
+      if(0!= settleMsgs(p, eagerLimit)) {
         Debug1("%d: p2p: all msgs are not settled\n", p);
         break;
       }
@@ -447,103 +450,12 @@ through:
   }
   return movement;
 }
-#endif
 
-/* progresses one step */
-#if 0
-static int processRank(const int p)
+static void processTrace(const ClockTalkOpts *const opts)
 {
-  if(!TraceRemainsProcEvts(p)) {
-    return 0;
-  }
-  int movement= 0;
-
-  const double t= tcevt(p);
-  const int e= cevt(p);
-
-  if(unlikely(excuse(pevt(p), e))) {
-    goto excused;
-  }
-
-  if(e> 0) {                       /* enter MPI */
-    ClockPauseMPI(p, t, e);
-    postMsgs(p);
-    if(0!= settleMsgs(p)) {
-      Debug1("%d: p2p: all msgs are not settled\n", p);
-      return movement;
-    }
-    if(0!= postColls(p)) {
-      Debug1("%d: coll: not posted - another collective on comm\n", p);
-      return movement;
-    }
-  } else if(e< 0) {                /* enter trace-events */
-    ClockPauseTrace(p, t, e);
-  } else {                         /* enter useful */
-    if(0!= settleColls(p)) {
-      Debug1("%d: coll: not settled - wait for others\n", p);
-      return movement;
-    }
-    postMsgs(p);
-    if(0!= settleMsgs(p)) {
-      Debug1("%d: p2p: all msgs are not settled\n", p);
-      return movement;
-    }
-    ClockPlay(p, t, e);
-  }
-
-  const char *status= "processed";
-  goto through;
-
-excused:
-  status= "excused";
-
-through:
-  Debug1("%d: %s -> %s at %.0lf (%.0lf) - %s\n", p, pevtname(p),
-         cevtname(p), ClockGetElapsed(p), ClockGetCritical(p), status);
-  TraceIncrIterProcEvts(p);
-  ++movement;
-
-  return movement;
-}
-#endif
-
-#if 0
-/* monitoring rank's timepoints */
-static void calcMonRanksTimepoints(long *const n, double *const umax,
-                                   double *uavg)
-{
-  const int p= GlOpts.evt_mon.rank;
-  long npoints= 0;
-
-  TraceResetProcIters();
-  while(TraceRemainsProcEvts(p)) {
-    const int e= cevt(p);
-    if(excuse(pevt(p), e)) {
-      goto excused;
-    }
-    if(0== e) {
-      ++npoints;
-    }
-
-    goto through;
-
-excused:
-    ;
-
-through:
-    TraceIncrIterProcEvts(p);
-  }
-  printf("#points in tl-file: %ld\n", npoints);
-  TraceResetProcIters();
-}
-#endif
-
-static void processTrace()
-{
-  /* calcMonRanksTimepoints(NULL, NULL, NULL); */
   const double t0= Timer_s();
-  TraceConnectEvtsToMsgs();
-  if(GlOpts.show_opts.timings) {
+  TraceConnectEvtsToMsgs(opts->show.diag);
+  if(opts->show.timings) {
     printf("Connecting MPI events to p2p calls took %.1lf s\n", Timer_s()- t0);
   }
 
@@ -551,6 +463,10 @@ static void processTrace()
 
   initialiseClocks(np);
   initialiseCollectives(np);
+
+  if(opts->sim.ignore.overhead) { excuseOverhead= IgnoreOverhead; }
+  if(opts->sim.ignore.flush) { excuseFlush= IgnoreFlush; }
+  if(opts->sim.ignore.untraced) { excuseUntraced= IgnoreUntraced; }
 
   TraceResetProcIters();
 
@@ -574,7 +490,7 @@ static void processTrace()
         continue;
       }
 
-      movement+= processRank(ip);
+      movement+= processRank(ip, opts->sim.eagerLimit);
 
       ncompleted+= checkEvtsCompletion(ip, completed);
     }
@@ -618,7 +534,7 @@ static void processTrace()
   }
 }
 
-static void showStats()
+static void showStats(const bool pretty)
 {
   const int np= TraceGetNumProcs();
   const double n2u= 1.0e-3;
@@ -631,7 +547,7 @@ static void showStats()
   const double useful_avg= ClockGetAvgUseful(np)* n2u;
 
   FILE *fp= stdout;
-  if(GlOpts.show_opts.pretty) {
+  if(pretty) {
     fprintf(fp, "==============================================\n");
     fprintf(fp, "       runtime= %.2lf us\n", runtime);
     fprintf(fp, "traced-runtime= %.2lf us\n", runtime_traced);
@@ -682,10 +598,10 @@ static void showStats()
   }
 }
 
-inline static void PrintGlobalOpts()
+inline static void PrintGlobalOpts(const ClockTalkOpts *const opts)
 {
 #if 0
-  printf("GlOpts:\n  filename: \"%s\"\n\n", GlOpts.filename);
+  printf("GlOpts:\n  filename: \"%s\"\n\n", opts->filename);
   printf("  show_opts:\n");
   printf("    diag: %d\n", GlOpts.show_opts.diag);
   printf("    error: %d\n", GlOpts.show_opts.error);
@@ -887,27 +803,46 @@ again:
 }
 #endif
 
+static int upNo(const char *restrict format, ...) { return 0; }
+int (*upErr)(const char *restrict format, ...)= upNo;
+int (*upDbg1)(const char *restrict format, ...)= printf;
+int (*upDbg2)(const char *restrict format, ...)= printf;
+int (*upDbg3)(const char *restrict format, ...)= printf;
+int (*upDbg4)(const char *restrict format, ...)= printf;
+int (*upDbg5)(const char *restrict format, ...)= printf;
 int main(int argc, char *argv[])
 {
-  if(0!= ParseOpts(argc, argv)) {
-    return 1;
+  ClockTalkOpts *opts= ParseOpts(argc, argv);
+  if(0!= opts->show.error) { upErr= printf; }
+  switch(opts->show.diag) {
+  case 0:
+    upDbg1= upNo;               /* fall through */
+  case 1:
+    upDbg2= upNo;               /* fall through */
+  case 2:
+    upDbg3= upNo;               /* fall through */
+  case 3:
+    upDbg4= upNo;               /* fall through */
+  default:
+    upDbg5= upNo;               /* fall through */
+    break;
   }
-  PrintGlobalOpts();
+  PrintGlobalOpts(opts);
 
   Debug1("Running program built on %s at %s\n", CT_BUILD_DATE, CT_BUILD_TIME);
 
   const double t0= Timer_s();
-  if(0!= ReadParaverFile(GlOpts.filename)) {
+  if(0!= ReadParaverFile(opts)) {
     Error("Problem reading paraver file \"%s\"\n", argv[1]);
     return 0;
   }
   const double t1= Timer_s();
 
-  if(GlOpts.show_opts.timings) {
+  if(opts->show.timings) {
     printf("Reading Paraver file took %.1lf s\n", t1- t0);
   }
 
-  processTrace();
+  processTrace(opts);
   if(false) {
     FILE *fp= fopen("checking.txt", "w");
     for(TraceResetIterEvts(); TraceGetIterEvts()< TraceGetNumEvts();
@@ -918,24 +853,25 @@ int main(int argc, char *argv[])
     fclose(fp); fp= NULL;
   }
 
-  showStats();
+  showStats(opts->show.pretty);
 
   ClockFinalize();
 
-  if(GlOpts.show_opts.timings) {
+  if(opts->show.timings) {
     const double t2= Timer_s();
     printf("Replay took %.1lf s (total %.1lf s)\n", t2- t1, t2- t0);
   }
 
-  if(GlOpts.evt_mon.enabled) {
-    DoMonitoringEventBased();
+  if(opts->mon.evt.isOn) {
+    DoMonitoringEventBased(opts);
   }
 
-  if(GlOpts.win_mon.enabled) {
-    DoMonitoringWindowed();
+  if(opts->mon.win.isOn) {
+    DoMonitoringWindowed(opts);
   }
 
-  FREE_IF(GlOpts.filename);
+  FREE_IF(opts->filename);
+  FREE_IF(opts);
 
   return 0;
 }
