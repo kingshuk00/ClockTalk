@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use ClockTalk for your work, please cite it as below."
+authors:
+  - family-names: "Haldar"
+    given-names: "Kingshuk"
+    orcid: "https://orcid.org/0000-0001-9222-7488"
+title: "ClockTalk"
+version: 0.0.1
+date-released: 2025-09-23
+doi: 10.5281/zenodo.19142950
+url: "https://github.com/kingshuk00/ClockTalk"
+preferred-citation:
+  type: generic
+  authors:
+  - family-names: "Haldar"
+    given-names: "Kingshuk"
+    orcid: "https://orcid.org/0000-0001-9222-7488"
+  doi: "10.48550/arXiv.2512.01764"
+  journal: "Submitted to the Proceedings of the 16th International Workshop on Parallel Tools for High Performance Computing, November 2025, Stuttgart, Germany"
+  month: 12
+  start: 1 # First page number
+  end: 16 # Last page number
+  title: "Trace-based, time-resolved analysis of MPI application performance using standard metrics"
+  year: 2025
