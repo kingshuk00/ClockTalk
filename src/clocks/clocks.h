@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2024-2025 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
@@ -12,7 +11,7 @@
 #ifndef REPLAY_CLOCKS_H__
 #define REPLAY_CLOCKS_H__
 
-#include"utils.h"
+#include"utils/utils.h"
 
 extern void ClockInit(const int);
 extern void ClockFinalize();

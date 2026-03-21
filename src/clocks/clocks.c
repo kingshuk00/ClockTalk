@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2024-2025 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
@@ -12,7 +11,7 @@
 #include"clocks.h"
 #include"paraver/paraver.h"
 #include"common.h"
-#include"utils.h"
+#include"utils/utils.h"
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>

@@ -10,7 +10,7 @@
 
 #include"build_info.h"
 #include"common.h"
-#include"utils.h"
+#include"utils/utils.h"
 #include"opt_parser.h"
 #include"trace/trace.h"
 #include"collectives.h"
@@ -803,30 +803,9 @@ again:
 }
 #endif
 
-static int upNo(const char *restrict format, ...) { return 0; }
-int (*upErr)(const char *restrict format, ...)= upNo;
-int (*upDbg1)(const char *restrict format, ...)= printf;
-int (*upDbg2)(const char *restrict format, ...)= printf;
-int (*upDbg3)(const char *restrict format, ...)= printf;
-int (*upDbg4)(const char *restrict format, ...)= printf;
-int (*upDbg5)(const char *restrict format, ...)= printf;
 int main(int argc, char *argv[])
 {
   ClockTalkOpts *opts= ParseOpts(argc, argv);
-  if(0!= opts->show.error) { upErr= printf; }
-  switch(opts->show.diag) {
-  case 0:
-    upDbg1= upNo;               /* fall through */
-  case 1:
-    upDbg2= upNo;               /* fall through */
-  case 2:
-    upDbg3= upNo;               /* fall through */
-  case 3:
-    upDbg4= upNo;               /* fall through */
-  default:
-    upDbg5= upNo;               /* fall through */
-    break;
-  }
   PrintGlobalOpts(opts);
 
   Debug1("Running program built on %s at %s\n", CT_BUILD_DATE, CT_BUILD_TIME);

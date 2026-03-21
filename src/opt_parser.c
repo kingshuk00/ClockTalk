@@ -11,7 +11,7 @@
 #include"build_info.h"
 #include"opt_parser.h"
 #include"common.h"
-#include"utils.h"
+#include"utils/utils.h"
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -273,6 +273,8 @@ ClockTalkOpts *ParseOpts(const int argc, char **argv)
       opts->mon.evt.num= 1;
     }
   }
+
+  UtilSetShowFunctions(opts->show.error, opts->show.diag);
 
   goto bye;
 

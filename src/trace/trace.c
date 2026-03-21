@@ -10,7 +10,7 @@
 
 #include"trace.h"
 #include"common.h"
-#include"utils.h"
+#include"utils/utils.h"
 #include"paraver/paraver_file.h"
 #include<stdlib.h>
 #include<string.h>

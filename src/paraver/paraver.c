@@ -11,7 +11,7 @@
 #include"paraver.h"
 #include"paraver_file.h"
 #include"common.h"
-#include"utils.h"
+#include"utils/utils.h"
 #include"trace/trace.h"
 #include<stdio.h>
 #include<stdlib.h>

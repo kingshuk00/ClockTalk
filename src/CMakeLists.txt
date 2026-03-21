@@ -1,10 +1,10 @@
 #
-# Copyright (c) 2026      Kingshuk Haldar.
-#                         All rights reserved.
+# Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
 #
 # Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
 #
 
+add_subdirectory(utils)
 add_subdirectory(trace)
 add_subdirectory(paraver)
 add_subdirectory(clocks)
@@ -26,6 +26,7 @@ target_link_libraries(replay PUBLIC
   clock
   monitoring
   trace
+  utils
   m
 )
 

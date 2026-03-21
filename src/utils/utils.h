@@ -85,20 +85,17 @@ extern int (*upDbg3)(const char *restrict format, ...);
 extern int (*upDbg4)(const char *restrict format, ...);
 extern int (*upDbg5)(const char *restrict format, ...);
 
-#define ErrorIf(cond, ...) do { if((cond)) { upErr("*** " __VA_ARGS__); } } while (false)
-#define Error(...) do { upErr("*** " __VA_ARGS__); } while (false)
-#define ErrorNL(...) do { upErr("\n*** " __VA_ARGS__); } while (false)
+extern int UtilSetShowFunctions(const int errLevel, const int dbgLevel);
 
-#define Debug1(...) do { upDbg1("DEBUG: " __VA_ARGS__); } while (false)
-#define Debug2(...) do { upDbg2("DEBUG: " __VA_ARGS__); } while (false)
-#define Debug3(...) do { upDbg3("DEBUG: " __VA_ARGS__); } while (false)
-#define Debug4(...) do { upDbg4("DEBUG: " __VA_ARGS__); } while (false)
-#define Debug5(...) do { upDbg5("DEBUG: " __VA_ARGS__); } while (false)
+#define ErrorIf(cond, ...) do { if(unlikely(cond)) { upErr("*** " __VA_ARGS__); } } while (false)
+#define Error(...) upErr("*** " __VA_ARGS__)
+#define ErrorNL(...) upErr("\n*** " __VA_ARGS__)
 
-#define Log(n, ...) do { if(n<= GlOpts.show_opts.diag) { printf("LOG: " __VA_ARGS__); } } while (false)
-#define Log1(...) Log(1, __VA_ARGS__)
-#define Log2(...) Log(2, __VA_ARGS__)
-#define Log3(...) Log(3, __VA_ARGS__)
+#define Debug1(...) upDbg1("DEBUG: " __VA_ARGS__)
+#define Debug2(...) upDbg2("DEBUG: " __VA_ARGS__)
+#define Debug3(...) upDbg3("DEBUG: " __VA_ARGS__)
+#define Debug4(...) upDbg4("DEBUG: " __VA_ARGS__)
+#define Debug5(...) upDbg5("DEBUG: " __VA_ARGS__)
 
 inline static double Timer_s()
 {
