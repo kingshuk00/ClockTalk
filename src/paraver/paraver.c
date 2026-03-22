@@ -31,7 +31,7 @@
 
 inline static bool isUseful(const int evt) { return 0== evt; }
 inline static bool isMPI(const int evt) { return 0< evt; }
-inline static bool isDisabledEvt(const int evt) { return -2== evt; }
+inline static bool isUntraced(const int evt) { return -2== evt; }
 inline static bool isFlush(const int evt) { return -3== evt; }
 inline static bool isTraceInit(const int evt) { return -4== evt; }
 inline static bool isUndefined(const int evt) { return -99== evt; }
@@ -231,7 +231,7 @@ static void countTraceability(const int p, const double at, const int start)
 {
   switch(start) {
   case 1:
-    ErrorIf(!isDisabledEvt(last.evtId[p]),
+    ErrorIf(!isUntraced(last.evtId[p]),
             "%d: enable tracing at %.0lf overwrites already enabled since %.0lf\n",
             p, last.evtAt[p], -TraceProcDisabledAt(p));
     TraceEndProcDisabled(p, at);
@@ -240,7 +240,7 @@ static void countTraceability(const int p, const double at, const int start)
     TraceIncrNumProcEvts(p);
     break;
   case 0:
-    ErrorIf(isDisabledEvt(last.evtId[p]),
+    ErrorIf(isUntraced(last.evtId[p]),
             "%d: disable tracing at %.0lf overwrites already disabled since %.0lf\n",
             p, at, TraceProcDisabledAt(p));
     if(isUseful(last.evtId[p])) {
