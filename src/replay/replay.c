@@ -8,6 +8,7 @@
  *
  */
 
+#include"replay.h"
 #include"build_info.h"
 #include"common.h"
 #include"utils/utils.h"
@@ -451,7 +452,7 @@ through:
   return movement;
 }
 
-static void processTrace(const ClockTalkOpts *const opts)
+void ReplayTrace(const ClockTalkOpts *const opts)
 {
   const double t0= Timer_s();
   TraceConnectEvtsToMsgs(opts->show.diag);
@@ -534,7 +535,7 @@ static void processTrace(const ClockTalkOpts *const opts)
   }
 }
 
-static void showStats(const bool pretty)
+void ShowStatsPostReplay(const bool pretty)
 {
   const int np= TraceGetNumProcs();
   const double n2u= 1.0e-3;
@@ -596,261 +597,4 @@ static void showStats(const bool pretty)
             useful_avg* runtime_inv, useful_avg/ useful_max,
             useful_max/ runtime_traced_ideal, runtime_traced_ideal* runtime_inv);
   }
-}
-
-inline static void PrintGlobalOpts(const ClockTalkOpts *const opts)
-{
-#if 0
-  printf("GlOpts:\n  filename: \"%s\"\n\n", opts->filename);
-  printf("  show_opts:\n");
-  printf("    diag: %d\n", GlOpts.show_opts.diag);
-  printf("    error: %d\n", GlOpts.show_opts.error);
-  printf("    io_timings: %s\n", GlOpts.show_opts.timings? "true": "false");
-  printf("    profile: %s\n", GlOpts.show_opts.profile? "true": "false");
-  printf("    pretty: %s\n", GlOpts.show_opts.pretty? "true": "false");
-  printf("\n  win_mon:\n");
-  printf("    win_len: %.6e\n", GlOpts.win_mon.win_len);
-  printf("    nwins_sma: %d\n", GlOpts.win_mon.nwins_sma);
-  printf("    enabled: %s\n", GlOpts.win_mon.enabled? "true": "false");
-  printf("  \n  evt_mon:\n");
-  printf("    rank: %d\n", GlOpts.evt_mon.rank);
-  printf("    nevts_report: %d\n", GlOpts.evt_mon.nevts_report);
-  printf("    enabled: %s\n", GlOpts.evt_mon.enabled? "true": "false");
-  printf("  \n  sim_opts:\n");
-  printf("    eager_limit: %.0lf\n", GlOpts.sim_opts.eager_limit);
-  printf("    ignore:\n");
-  printf("      trace_evts: %s\n",
-         GlOpts.sim_opts.ignore.trace_evts? "true": "false");
-  printf("      flush_evts: %s\n",
-         GlOpts.sim_opts.ignore.flush_evts? "true": "false");
-  printf("      disabled_tracing: %s\n",
-         GlOpts.sim_opts.ignore.disabled_tracing? "true": "false");
-
-  /* exit(0); */
-#endif
-}
-
-#if 0
-void PrintAbc(const int ip)
-{
-  printf("%.0lf -> %.0lf -> %.0lf\n", tpevt(ip), tcevt(ip), tnevt(ip));
-  printf("%.0lf -> %.0lf -> %.0lf\n\n", ctpevt(ip), ctcevt(ip), ctnevt(ip));
-  fflush(stdout);
-}
-#endif
-
-#if 0
-void Abc()
-{
-  const int np= TraceGetNumProcs();
-  struct {
-    double *tprv;
-    double *tsim;
-    int *evt;
-    double *at;
-    bool *isEnabled;
-  } last= { NULL, NULL, NULL, NULL, NULL };
-
-  struct {
-    double tMin;
-    double tMax;
-    double step;
-    double cMaxLast;
-    double *nevts;
-    double *useful;
-    double *critic;
-  } bin= { 0.0, 0.0, 0.0, 0.0, NULL, NULL, NULL };
-
-  last.tprv= (double *) malloc(sizeof(double)* np);
-  memset(last.tprv, 0, sizeof(double)* np);
-
-  last.tsim= (double *) malloc(sizeof(double)* np);
-  memset(last.tsim, 0, sizeof(double)* np);
-
-  last.evt= (int *) malloc(sizeof(int)* np);
-  memset(last.evt, 0, sizeof(int)* np);
-
-  last.at= (double *) malloc(sizeof(double)* np);
-  memset(last.at, 0, sizeof(double)* np);
-
-  last.isEnabled= (bool *) malloc(sizeof(bool)* np);
-  memset(last.isEnabled, 0, sizeof(bool)* np);
-
-  bin.nevts= (double *) malloc(sizeof(double)* np);
-  memset(bin.nevts, 0, sizeof(double)* np);
-
-  bin.useful= (double *) malloc(sizeof(double)* np);
-  memset(bin.useful, 0, sizeof(double)* np);
-
-  bin.critic= (double *) malloc(sizeof(double)* np);
-  memset(bin.critic, 0, sizeof(double)* np);
-
-  const double t0= TraceGetProgStartTimeMin();
-  const double t1= TraceGetProgEndTimeMax();
-
-  for(int ip= 0; ip< np; ++ip) {
-    last.tprv[ip]= last.tsim[ip]= t0;
-    last.evt[ip]= -1;
-  }
-
-  FILE *fp= fopen("abc.dat", "w");
-  fprintf(fp, "#%14s %15s %15s %15s %15s %15s %15s %15s\n",
-          "t1-1", "uavg-2", "umax-3", "cavg-4", "cmax-5", "elapsed-6", "crit-7",
-          "min-nevts-8");
-
-  bin.step= 2.0e9;
-  bin.tMin= t0;
-  bin.cMaxLast= t0;
-  TraceResetProcIters();
-  const double pfactor= 1.0/ ((double) np);
-  const double nevts_threshold= sqrt((double) np); /* MIN(128.0,((double) np)); */
-  const long nbins= (long) ceil((t1- t0)/ bin.step);
-  for(long ibin= 0; ibin< nbins; ++ibin) {
-    memset(bin.nevts, 0, sizeof(double)* np);
-    memset(bin.useful, 0, sizeof(double)* np);
-    memset(bin.critic, 0, sizeof(double)* np);
-    bin.tMax= MIN(bin.tMin+bin.step, t1);
-
-again:
-    /* work till elapsed exceeds end-of-the-bin */
-    for(int ip= 0; ip< np; ++ip) {
-      for(; TraceRemainsProcEvts(ip); TraceIncrIterProcEvts(ip)) {
-        if(tcevt(ip)> bin.tMax) {
-          break;
-        }
-
-        if(0== last.evt[ip]) {
-          bin.useful[ip]+= tcevt(ip)- last.tprv[ip];
-        }
-        bin.critic[ip]+= ctcevt(ip)- last.tsim[ip];
-        bin.nevts[ip]+= 1.0;
-
-        last.tprv[ip]= tcevt(ip);
-        last.tsim[ip]= ctcevt(ip);
-        last.evt[ip]= cevt(ip);
-      }
-    }
-
-    double nevtsmin= DBL_MAX;
-    for(int ip= 0; ip< np; ++ip) {
-      nevtsmin= MIN(bin.nevts[ip], nevtsmin);
-    }
-#if 1
-    if(nevtsmin< nevts_threshold&& bin.tMax< t1) {
-      ++ibin;
-      bin.tMax+= bin.step;
-      goto again;
-    }
-#endif
-
-    /* fill the remaing gap till end-of-the-bin */
-    double tcmax= 0.0;
-    for(int ip= 0; ip< np; ++ip) {
-      const double tremains= bin.tMax- last.tprv[ip];
-      switch(last.evt[ip]) {
-      case 0:
-        bin.useful[ip]+= tremains;
-        bin.critic[ip]+= tremains;
-        last.tsim[ip]+= tremains;
-        break;
-      default: {
-          const double tcritnext= ctcevt(ip)- last.tsim[ip];
-          if(tcritnext> tremains) {
-            bin.critic[ip]+= tremains;
-            last.tsim[ip]+= tremains;
-          } else {
-            bin.critic[ip]+= tcritnext;
-            last.tsim[ip]+= tcritnext;
-          }
-        }
-        break;
-      }
-
-      last.tprv[ip]= bin.tMax;
-      tcmax= MAX(last.tsim[ip], tcmax);
-    }
-
-    double uavg= 0.0, umax= 0.0, cavg= 0.0, cmax= 0.0;
-    for(int ip= 0; ip< np; ++ip) {
-      uavg+= bin.useful[ip];
-      umax= MAX(bin.useful[ip], umax);
-
-      cavg+= bin.critic[ip];
-      cmax= MAX(bin.critic[ip], cmax);
-    }
-    uavg*= pfactor;
-    cavg*= pfactor;
-
-    double crit= tcmax- bin.cMaxLast; bin.cMaxLast= tcmax;
-
-    if(crit< umax) {
-      printf("Forcing: critical was less than max-useful\n");
-      crit= umax;
-    }
-
-    if(crit> bin.tMax- bin.tMin) {
-      printf("Forcing: critical was more than time-window\n");
-      crit= bin.tMax- bin.tMin;
-    }
-
-    fprintf(fp, "%.9e %.9e %.9e %.9e %.9e %.9e %.9e %.9e\n",
-            bin.tMax, uavg, umax, cavg, cmax, bin.tMax- bin.tMin, crit, nevtsmin);
-
-    bin.tMin= bin.tMax;
-  }
-
-  fclose(fp); fp= NULL;
-}
-#endif
-
-int main(int argc, char *argv[])
-{
-  ClockTalkOpts *opts= ParseOpts(argc, argv);
-  PrintGlobalOpts(opts);
-
-  Debug1("Running program built on %s at %s\n", CT_BUILD_DATE, CT_BUILD_TIME);
-
-  const double t0= Timer_s();
-  if(0!= ReadParaverFile(opts)) {
-    Error("Problem reading paraver file \"%s\"\n", argv[1]);
-    return 0;
-  }
-  const double t1= Timer_s();
-
-  if(opts->show.timings) {
-    printf("Reading Paraver file took %.1lf s\n", t1- t0);
-  }
-
-  processTrace(opts);
-  if(false) {
-    FILE *fp= fopen("checking.txt", "w");
-    for(TraceResetIterEvts(); TraceGetIterEvts()< TraceGetNumEvts();
-        TraceIncrIterEvts()) {
-      fprintf(fp, "%.9e %.9e %3d\n",
-              TraceGetCurrEvtAt(), TraceGetCurrEvtCrit(), TraceGetCurrEvtId());
-    }
-    fclose(fp); fp= NULL;
-  }
-
-  showStats(opts->show.pretty);
-
-  ClockFinalize();
-
-  if(opts->show.timings) {
-    const double t2= Timer_s();
-    printf("Replay took %.1lf s (total %.1lf s)\n", t2- t1, t2- t0);
-  }
-
-  if(opts->mon.evt.isOn) {
-    DoMonitoringEventBased(opts);
-  }
-
-  if(opts->mon.win.isOn) {
-    DoMonitoringWindowed(opts);
-  }
-
-  FREE_IF(opts->filename);
-  FREE_IF(opts);
-
-  return 0;
 }

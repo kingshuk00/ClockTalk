@@ -1,16 +1,15 @@
 /*
- * Copyright (c) 2026      Kingshuk Haldar.
- *                         All rights reserved.
+ * Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
  *
  * Copyright (c) 2023-2025 High Performance Computing Center Stuttgart,
- *                         University of Stuttgart.  All rights reserved.
+ *                         University of Stuttgart. All rights reserved.
  *
  * Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
  *
  */
 
-#ifndef REPLAY_COLLECTIVES_H__
-#define REPLAY_COLLECTIVES_H__
+#ifndef CLOCKTALK_REPLAY_COLLECTIVES_H__
+#define CLOCKTALK_REPLAY_COLLECTIVES_H__
 
 #include"common.h"
 #include"trace/trace.h"
@@ -165,4 +164,4 @@ inline static int LeaveColl(const int c, const int p, const double t,
   return 0;
 }
 
-#endif  /* REPLAY_COLLECTIVES_H__ */
+#endif  /* CLOCKTALK_REPLAY_COLLECTIVES_H__ */

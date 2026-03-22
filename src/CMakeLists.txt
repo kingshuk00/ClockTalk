@@ -9,31 +9,15 @@ add_subdirectory(trace)
 add_subdirectory(paraver)
 add_subdirectory(clocks)
 add_subdirectory(monitoring)
+add_subdirectory(replay)
 
-file(GLOB REPLAY_ROOT_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/*.c"
-)
-list(FILTER REPLAY_ROOT_SOURCES EXCLUDE REGEX ".*/main\\.c$")
-
-add_library(replay STATIC ${REPLAY_ROOT_SOURCES})
-
-target_include_directories(replay PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(replay PUBLIC
-  paraver
-  clock
-  monitoring
-  trace
-  utils
-  m
-)
-
+# link-time optimisation
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # main function
 add_executable(clocktalk
-  ${CMAKE_CURRENT_SOURCE_DIR}/main.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/opt_parser.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/clocktalk.c
 )
 
 target_include_directories(clocktalk PRIVATE
@@ -43,5 +27,10 @@ target_include_directories(clocktalk PRIVATE
 # Static link order matters; dependencies should appear to the right.
 target_link_libraries(clocktalk PRIVATE
   replay
+  paraver
+  clock
+  monitoring
+  trace
+  utils
   m
 )
