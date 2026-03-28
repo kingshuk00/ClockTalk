@@ -437,6 +437,7 @@ inline static off_t prvfile_readHeader(FILE *fp, char **headerp, size_t *headerL
 inline static ParaverFile *PrvFile_open(const char *const fn)
 {
   FILE *fp= NULL;
+  char *header= NULL;
   ParaverFile *file= (ParaverFile *) malloc(sizeof(ParaverFile));
   if(NULL== file) {
     fprintf(stderr, "%s: Error allocating memroy\n", __func__);
@@ -454,7 +455,6 @@ inline static ParaverFile *PrvFile_open(const char *const fn)
     goto bad;
   }
 
-  char *header= NULL;
   size_t headerLen= 0;
   if((file->commsPos= prvfile_readHeader(fp, &header, &headerLen))< 0) {
     goto bad;
