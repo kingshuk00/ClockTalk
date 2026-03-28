@@ -28,7 +28,7 @@ const char *argp_program_version= "ClockTalk "CT_VERSION"\n  Compiled with "
   "                     University of Stuttgart. All rights reserved.\n";
 
 const char *argp_program_bug_address=
-  "<https://github.com/kingshuk00/ClockTalk/issues/new>";
+  "<https://github.com/kingshuk00/ClockTalk/issues/new>.\nRequest a new feature: create an issue with label \"is a feature request\"";
 
 inline static void interpretSpecialEvtsOpts(ClockTalkSimOpts *const opts,
                                             char *const optArg)
@@ -98,6 +98,7 @@ static struct argp_option showOpts[]= {
   { "show-timings", 'T', 0, 0, "I/O progress and timings in stdout (default: no)", 2 },
   { "export-profile", 'X', 0, 0, "Quick profile in a separate file (default: no)", 1 },
   { "pretty-output", 'P', 0, 0, "Formatted end-output in stdout (default: no)", 1 },
+  { "show-options", 'O', 0, 0, "Options in stdiout (default: no)", 0 },
   { 0 }
 };
 static error_t parseShowOpts(int key, char *arg, struct argp_state *state)
@@ -109,6 +110,9 @@ static error_t parseShowOpts(int key, char *arg, struct argp_state *state)
     break;
   case 'E':
     opts->error= NULL!= arg? atoi(arg): 1;
+    break;
+  case 'O':
+    opts->opts= true;
     break;
   case 'T':
     opts->timings= true;
@@ -187,11 +191,10 @@ static error_t parseSimOpts(int key, char *arg, struct argp_state *state)
   case 3001:
     interpretEagerLimitOpt(opts, arg);
     break;
-  case 2102:
+  case 3002:
     interpretSpecialEvtsOpts(opts, arg);
     break;
   default:
-    /* printf("Where are you (sim)? (0x%x)\n", key); */
     return ARGP_ERR_UNKNOWN;
     break;
   }
@@ -231,12 +234,74 @@ static error_t parseMainOpts(int key, char *arg, struct argp_state *state)
     state->child_inputs[2]= &(opts->sim);
     break;
   default:
-    /* printf("Where are you (main)? (0x%x)\n", key); */
     return ARGP_ERR_UNKNOWN;
     break;
   }
 
   return 0;
+}
+
+inline static void humanReadableSize(FILE *fp, double s)
+{
+  char prefix[2]= { '\0' };
+  char prefixes[4]= { 'k', 'M', 'G', 'T' };
+  for(int i= 0; i< 4; ++i) {
+    if(s< 1024.0) { break; }
+    s/= 1024.0;
+    prefix[0]= prefixes[i];
+  }
+  fprintf(fp, "%4.2lf %sB\n", s, prefix);
+}
+
+static void reportOpts(const ClockTalkOpts *const opts)
+{
+  if(!opts->show.opts) { return; }
+
+  FILE *fp= stdout;
+  fprintf(fp, "ClockTalk to process \"%s\" with options:\n"
+          "- Report:\n"
+          "  - diagnosis level: %d\n"
+          "  - error level: %d\n"
+          "  - timing: %s\n"
+          "  - profile: %s\n"
+          "  - pretty profile: %s\n"
+          "  - all options: %s\n",
+          opts->filename, opts->show.diag, opts->show.error,
+          opts->show.timings? "yes": "no", opts->show.profile? "yes": "no",
+          opts->show.pretty? "yes": "no", opts->show.opts? "yes": "no");
+
+  if(opts->mon.win.isOn) {
+    fprintf(fp, "- Windowed monitoring: yes\n"
+            "  - window length: %.9e ns\n"
+            "  - #windows for SMA: %d, not implemented\n",
+            opts->mon.win.len, opts->mon.win.num);
+  } else {
+    fprintf(fp, "- Windowed monitoring: no\n");
+  }
+
+  if(opts->mon.evt.isOn) {
+    fprintf(fp, "- Event-based monitoring: yes\n"
+            "  - events of rank: %d\n"
+            "  - #events: %d\n",
+            opts->mon.evt.rank, opts->mon.evt.num);
+  } else {
+    fprintf(fp, "- Event-based monitoring: no\n");
+  }
+
+  fprintf(fp, "- Simulation options:\n"
+          "  - eager limit: ");
+  humanReadableSize(fp, opts->sim.eagerLimit);
+
+  if(opts->sim.ignore.overhead) {
+    fprintf(fp, "  - Trace book-keeping regions are considered out-of-MPI\n");
+  }
+  if(opts->sim.ignore.flush) {
+    fprintf(fp, "  - Trace flush regions are considered out-of-MPI\n");
+  }
+  if(opts->sim.ignore.untraced) {
+    fprintf(fp, "  - Untraced regions are considered out-of-MPI\n");
+  }
+  fflush(fp);
 }
 
 ClockTalkOpts *ParseOpts(const int argc, char **argv)
@@ -275,6 +340,8 @@ ClockTalkOpts *ParseOpts(const int argc, char **argv)
   }
 
   UtilSetShowFunctions(opts->show.error, opts->show.diag);
+
+  reportOpts(opts);
 
   goto bye;
 

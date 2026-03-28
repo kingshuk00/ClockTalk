@@ -19,6 +19,7 @@ typedef struct {
   bool timings;
   bool profile;
   bool pretty;
+  bool opts;
 } ClockTalkShowOpts;
 
 typedef struct {
@@ -54,6 +55,5 @@ typedef struct ClockTalkOpts_type_ {
   ClockTalkSimOpts sim;
 
 } ClockTalkOpts;
-
 
 #endif  /* CLOCKTALK_COMMON_H__ */
