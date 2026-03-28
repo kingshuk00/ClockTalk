@@ -1,4 +1,5 @@
 # ClockTalk
+[![Coverity Scan Build Status](https://scan.coverity.com/projects/33002/badge.svg)](https://scan.coverity.com/projects/33002)
 
 - Trace replay for critical path from Paraver file.
 - Usage:
