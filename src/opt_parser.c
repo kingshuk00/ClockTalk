@@ -22,13 +22,14 @@
 #include"argp.h"
 
 const char *argp_program_version= "ClockTalk "CT_VERSION"\n  Compiled with "
-  CT_COMPILER" on "CT_BUILD_DATE" at "CT_BUILD_TIME"\n\n"
+  CT_COMPILER"\n           on "CT_BUILD_DATE" at "CT_BUILD_TIME"\n\n"
   "  Copyright (C) 2026 Kingshuk Haldar. All rights reserved.\n\n"
   "  Copyright (C) 2025 High Performance Computing Center Stuttgart,\n"
   "                     University of Stuttgart. All rights reserved.\n";
 
 const char *argp_program_bug_address=
-  "<https://github.com/kingshuk00/ClockTalk/issues/new>.\nRequest a new feature: create an issue with label \"is a feature request\"";
+  "<https://github.com/kingshuk00/ClockTalk/issues/new>.\n"
+  "Request a new feature: create an issue with label \"is a feature request\"";
 
 inline static void interpretSpecialEvtsOpts(ClockTalkSimOpts *const opts,
                                             char *const optArg)

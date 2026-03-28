@@ -1,6 +1,5 @@
 #
-# Copyright (c) 2026      Kingshuk Haldar.
-#                         All rights reserved.
+# Copyright (c) 2026      Kingshuk Haldar. All rights reserved.
 #
 # Authors: Kingshuk Haldar <haldar.kingshuk@gmail.com>
 #
@@ -20,7 +19,7 @@ endif()
 
 # Compiler flags based on Release vs Debug
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG")   # optimize O3, define NDEBUG
-set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG} -g3 -O0")         # debug info, no optimization
+set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG} -g3 -O0")          # debug info, no optimization
 
 # Global warnings
 add_compile_options(-Wall -Werror)   # all warnings are errors
