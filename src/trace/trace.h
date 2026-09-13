@@ -15,6 +15,7 @@
 #include<math.h>                /* fabs */
 #include<stdio.h>               /* printf() */
 #include<stdlib.h>
+#include<inttypes.h>
 #include<stdbool.h>
 
 typedef struct IndexList_type__ {
@@ -27,11 +28,32 @@ typedef struct ProcMap_struct__ {
   long **gids;
 } ProcMap;
 typedef struct TraceData_struct__ {
-  long long runtime;
-  char timeunit[4];
-  int numnodes;                 /* #resources */
-  int numapps;
-  int numprocs;
+  struct {
+    int64_t duration;
+    char unit[4];
+  } runtime;
+
+  struct {
+    int32_t numCPUs;
+  } *nodes;
+  int32_t numNodes;
+
+  struct {
+    struct {
+      int32_t numThreads;
+      int32_t nodeId;
+    } *tasks;
+    int32_t numTasks;
+  } *apps;
+  int32_t numApps;
+
+  struct {
+    int32_t *ranks;
+    int32_t size;               /* naming size instead of num */
+    int32_t app;
+    int32_t ix;
+  } *comms;
+  uint32_t numComms;
 
   double extremities[2];
 
@@ -45,12 +67,6 @@ typedef struct TraceData_struct__ {
     bool *hasTraceInit;   /* len= #procs */
     bool *hasMPIInit;     /* len= #procs */
   } timeline;
-
-  struct {
-    long num;                   /* #communicators in whole trace */
-    int *sizes;
-    int **ranks;
-  } comms;
 
   struct {
     long num;                   /* #events in whole trace */
@@ -97,11 +113,11 @@ extern TraceData *CreateTrace(const struct ParaverFile_struct__ *const);
 extern TraceData *Trace0;
 inline static void SetWorkingTrace(TraceData *const t) { Trace0= t; }
 
-inline static long long TraceGetRuntime() { return Trace0->runtime; }
-inline static const char *TraceGetTimeUnit() { return Trace0->timeunit; }
-inline static int TraceGetNumNodes() { return Trace0->numnodes; }
-inline static int TraceGetNumApps() { return Trace0->numapps; }
-inline static int TraceGetNumProcs() { return Trace0->numprocs; }
+inline static long long TraceGetRuntime() { return Trace0->runtime.duration; }
+inline static const char *TraceGetTimeUnit() { return Trace0->runtime.unit; }
+inline static int TraceGetNumNodes() { return Trace0->numNodes; }
+inline static int TraceGetNumApps() { return Trace0->numApps; }
+inline static int TraceGetNumProcs() { return Trace0->apps[0].numTasks; }
 
 /* timeline-proc-extents */
 inline static double *TraceGetPtrProcTimeline() { return Trace0->timeline.extents[0]; }
@@ -170,7 +186,7 @@ inline static void TraceSetMPIInitEvt(const int p) { Trace0->timeline.hasTraceIn
 inline static bool TraceProcHasMPIInitEvt(const int p) { return Trace0->timeline.hasTraceInit[p]; }
 inline static bool TraceAllHaveMPIInitEvt()
 {
-  for(int ip= 0; ip< Trace0->numprocs; ++ip) {
+  for(int ip= 0; ip< Trace0->apps[0].numTasks; ++ip) {
     if(!TraceProcHasMPIInitEvt(ip)) {
       return false;
     }
@@ -179,7 +195,7 @@ inline static bool TraceAllHaveMPIInitEvt()
 }
 inline static bool TraceAnyHasMPIInitEvt()
 {
-  for(int ip= 0; ip< Trace0->numprocs; ++ip) {
+  for(int ip= 0; ip< Trace0->apps[0].numTasks; ++ip) {
     if(TraceProcHasMPIInitEvt(ip)) {
       return true;
     }
@@ -188,13 +204,12 @@ inline static bool TraceAnyHasMPIInitEvt()
 }
 
 /* communicators */
-inline static long TraceGetNumComms() { return Trace0->comms.num; }
-inline static int *TraceGetPtrCommsSizes() { return Trace0->comms.sizes; }
-inline static int *TraceGetPtrCommsRanks(const int ic) { return Trace0->comms.ranks[ic]; }
-inline static int TraceGetCommRank(const int ic, const int i) { return Trace0->comms.ranks[ic][i]; }
-inline static int TraceGetCommSize(const int ic) { return Trace0->comms.sizes[ic]; }
-inline static bool TraceIsCommSelf(const int ic) { return 1== Trace0->comms.sizes[ic]; }
-inline static int TraceGetSelfCommRank(const int ic) { return TraceGetCommRank(ic, 0); }
+inline static long TraceGetNumComms() { return Trace0->numComms; }
+inline static int *TraceGetPtrCommsRanks(const int c) { return Trace0->comms[c].ranks; }
+inline static int TraceGetCommRank(const int c, const int i) { return Trace0->comms[c].ranks[i]; }
+inline static int TraceGetCommSize(const int c) { return Trace0->comms[c].size; }
+inline static bool TraceIsCommSelf(const int c) { return 1== Trace0->comms[c].size; }
+inline static int TraceGetSelfCommRank(const int c) { return TraceGetCommRank(c, 0); }
 
 /* evts-num */
 inline static void TraceSetNumEvts(const long num) { Trace0->evts.num= num; }

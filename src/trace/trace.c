@@ -16,19 +16,9 @@
 #include<string.h>
 #include<stdbool.h>
 
-inline static void allocComms(TraceData *const t, const int numComms,
-                              const long sizeAllComms)
-{
-  t->comms.num= numComms;
-  t->comms.sizes= (int *) malloc(sizeof(int)* numComms);
-  memset(t->comms.sizes, 0, sizeof(int)* numComms);
-  t->comms.ranks= (int **) malloc(sizeof(int *)* numComms);
-  t->comms.ranks[0]= (int *) malloc(sizeof(int)* sizeAllComms);
-  memset(t->comms.ranks[0], 0, sizeof(int)* sizeAllComms);
-}
 inline static void allocLevel0Data(TraceData *const t)
 {
-  const int np= t->numprocs;
+  const int np= t->apps[0].numTasks;
   t->timeline.extents= (double (*)[2]) malloc(sizeof(double[2])* np);
   t->timeline.tcomp= (double *) malloc(sizeof(double)* np);
   t->timeline.tmpi= (double *) malloc(sizeof(double)* np);
@@ -54,7 +44,7 @@ inline static void allocLevel0Data(TraceData *const t)
 }
 inline static void initLevel0Data(TraceData *const t)
 {
-  const int np= t->numprocs;
+  const int np= t->apps[0].numTasks;
   for(int ip= 0; ip< np; ++ip) {
     t->timeline.extents[ip][0]= -1.0;
     t->timeline.extents[ip][1]= -1.0;
@@ -88,15 +78,17 @@ TraceData *CreateTrace(const ParaverFile *const file)
   TraceData *t= (TraceData *) malloc(sizeof(TraceData));
   memset(t, 0, sizeof(TraceData));
 
-  t->runtime= PrvFile_runTime(file);
-  memcpy(t->timeunit, PrvFile_timeUnit(file), 3);
-  t->numnodes= PrvFile_numNodes(file);
-  t->numapps= PrvFile_numApps(file);
+  t->runtime.duration= ParaverFile_duration(file);
+  strcpy(t->runtime.unit, ParaverFile_timeUnit(file));
 
-  allocComms(t, PrvFile_numComms(file), PrvFile_allCommsSizes(file));
-  PrvFile_readComms(file, t->comms.sizes, t->comms.ranks);
+  t->numNodes= ParaverFile_numNodes(file);
+  t->nodes= (typeof(t->nodes)) file->nodes;
 
-  t->numprocs= PrvFile_numProcs(file);
+  t->numApps= ParaverFile_numApps(file);
+  t->apps= (typeof(t->apps)) file->apps;
+
+  t->numComms= ParaverFile_numComms(file);
+  t->comms= (typeof(t->comms)) file->comms;
 
   allocLevel0Data(t);
   initLevel0Data(t);
