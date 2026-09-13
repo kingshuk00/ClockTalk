@@ -256,11 +256,11 @@ static void countTraceability(const int p, const double at, const int start)
     break;
   }
 }
-static void countEvt(char *const line)
+static void countEvt(const char *const line)
 {
-  char *ptr= PrvFile_nthRecNum(line, 3);
+  const char *ptr= ParaverFile_recAfterNth(line, ':', 3);
   const int p= atoi(ptr)- 1;
-  ptr= PrvFile_nthRecNum(ptr, 2);
+  ptr= ParaverFile_recAfterNth(ptr, ':', 2);
   last.tickAt[p]= atof(ptr);
 
   /* TODO: maybe move this check to a separate reading and finish as soon as everyone is started */
@@ -274,7 +274,7 @@ static void countEvt(char *const line)
   while(NULL!= ptr) {
     ++ptr;
     long long type= atoll(ptr);
-    ptr= PrvFile_nextRecNum(ptr);
+    ptr= ParaverFile_recAfter(ptr, ':');
     switch(type) {
     case 50000001:  /* mpi p2p */
     case 50000002:  /* mpi collective */
@@ -304,12 +304,12 @@ static void countEvt(char *const line)
     ptr= strchr(ptr, ':');
   }
 }
-static void countMsg(char *const line)
+static void countMsg(const char *const line)
 {
-  char *ptr= PrvFile_nthRecNum(line, 3);
+  const char *ptr= ParaverFile_recAfterNth(line, ':', 3);
   TraceIncrNumProcSends(atoi(ptr)- 1);
 
-  ptr= PrvFile_nthRecNum(ptr, 6);
+  ptr= ParaverFile_recAfterNth(ptr, ':', 6);
   TraceIncrNumProcRecvs(atoi(ptr)- 1);
 }
 static void evtsAndCommsCounter(char *const line)
@@ -452,17 +452,17 @@ static void readTraceability(const int p, const double at, const int evt)
   }
 }
 
-static void readEvt(char *const line)
+static void readEvt(const char *const line)
 {
-  char *ptr= PrvFile_nthRecNum(line, 3);
+  const char *ptr= ParaverFile_recAfterNth(line, ':', 3);
   const int p= atoi(ptr)- 1;
-  ptr= PrvFile_nthRecNum(ptr, 2);
+  ptr= ParaverFile_recAfterNth(ptr, ':', 2);
   last.tickAt[p]= atof(ptr);
   ptr= strchr(ptr, ':');
   while(NULL!= ptr) {
     ++ptr;
     long long type= atoll(ptr);
-    ptr= PrvFile_nextRecNum(ptr);
+    ptr= ParaverFile_recAfter(ptr, ':');
     switch(type) {
     case 50000002:  /* mpi collective */
       readMPICollEvt(p, last.tickAt[p], atoi(ptr));
@@ -494,34 +494,34 @@ static void readEvt(char *const line)
   }
 }
 
-static void readMsg(char *const line)
+static void readMsg(const char *const line)
 {
   /* 0:1   :2    :3    :4      :5    :6    :7   :8    :9    :10     :11   :12   :13  :14  */
   /* s s    s     x     s       x     x     s    s     x     s       x     x     x    x   */
   /* 3:scpu:stask:srank:sthread:lsend:psend:rcpu:rtask:rrank:rthread:lrecv:precv:size:tag */
   /*                     0   1   2  3   4   5   6   7   8  9   0   1   2   3  4 */
-  char *ptr= PrvFile_nthRecNum(line, 3);
+  const char *ptr= ParaverFile_recAfterNth(line, ':', 3);
   TraceSetCurrMsgSendRank(atoi(ptr)- 1);
 
-  ptr= PrvFile_nthRecNum(ptr, 2);
+  ptr= ParaverFile_recAfterNth(ptr, ':', 2);
   TraceSetCurrMsgSendAt(0, atof(ptr));
 
-  ptr= PrvFile_nextRecNum(ptr);
+  ptr= ParaverFile_recAfter(ptr, ':');
   TraceSetCurrMsgSendAt(1, atof(ptr));
 
-  ptr= PrvFile_nthRecNum(ptr, 3);
+  ptr= ParaverFile_recAfterNth(ptr, ':', 3);
   TraceSetCurrMsgRecvRank(atoi(ptr)- 1);
 
-  ptr= PrvFile_nthRecNum(ptr, 2);
+  ptr= ParaverFile_recAfterNth(ptr, ':', 2);
   TraceSetCurrMsgRecvAt(0, atof(ptr));
 
-  ptr= PrvFile_nextRecNum(ptr);
+  ptr= ParaverFile_recAfter(ptr, ':');
   TraceSetCurrMsgRecvAt(1, atof(ptr));
 
-  ptr= PrvFile_nextRecNum(ptr);
+  ptr= ParaverFile_recAfter(ptr, ':');
   TraceSetCurrMsgSize(atof(ptr));
 
-  ptr= PrvFile_nextRecNum(ptr);
+  ptr= ParaverFile_recAfter(ptr, ':');
   TraceSetCurrMsgTag(atoi(ptr));
 
   TraceSetProcSendRecvGids(TraceGetCurrMsgSendRank(),
@@ -757,17 +757,17 @@ inline static double processParaverFile(ParaverFile *const file,
                                         void (*processor)(char *const),
                                         const bool showTimings)
 {
-  PrvFile_setLineProcessor(file, processor);
-  PrvFile_reloadRecords(file);
-  return PrvFile_process(file, (showTimings? 2: 0));
+  ParaverFile_setLineProcessor(file, processor);
+  ParaverFile_reloadRecords(file);
+  return ParaverFile_process(file, (showTimings? 2: 0));
 }
 int ReadParaverFile(ClockTalkOpts *const opts)
 {
-  ParaverFile *file= PrvFile_open(opts->filename);
+  ParaverFile *file= ParaverFile_open(opts->filename);
 
   SetWorkingTrace(CreateTrace(file));
 
-  const int np= PrvFile_numProcs(file);
+  const int np= ParaverFile_numTasks(file);
   allocLasts(np);
 
   const double tioCount= processParaverFile(file, evtsAndCommsCounter,
@@ -795,7 +795,8 @@ int ReadParaverFile(ClockTalkOpts *const opts)
 
   freeLasts();
 
-  PrvFile_close(file); file= NULL;
+  ParaverFile_disownMetadata(file);
+  ParaverFile_close(file); file= NULL;
   Debug1("File I/O: during count= %.1lfs, during read= %.1lfs\n", tioCount,
          tioRead);
 
@@ -816,7 +817,7 @@ const char *GetParaverMPIEvtName(const int ev)
   case -1:
     return "End-tracing";
   default:
-    return PrvFile_MPIName(ev);
+    return ParaverFile_MPIName(ev);
   }
 
   return "Strange";
